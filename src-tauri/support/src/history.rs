@@ -8,8 +8,8 @@ use std::os::unix::fs::FileExt;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
-use toml::Value;
 use toml::de::Error as TomlError;
+use toml::Value;
 use toml::value::Table;
 
 #[derive(Serialize, Deserialize)]
@@ -38,8 +38,9 @@ struct His {
 /// let content = get_open_history(data_path);
 /// println!("content: {}", content);
 /// ```
-pub fn get_open_history(mut data_path: PathBuf) -> String {
+pub fn get_open_history(mut data_path: PathBuf) -> Option<Value> {
     data_path.push("history.toml");
+    println!("读取缓存信息的文件为 {:?}", data_path);
     return if data_path.exists() {
         let mut file = File::open(data_path).unwrap();
         let mut content = String::new();
@@ -49,15 +50,16 @@ pub fn get_open_history(mut data_path: PathBuf) -> String {
 
         match his_list {
             Ok(his_list) => {
-                serde_json::to_string(&his_list).unwrap()
+                let his_arr = his_list.get("His").unwrap();
+                Some(his_arr.clone())
             }
             Err(e) => {
                 eprintln!("get open history error: {:?}", e);
-                String::new()
+                None
             }
         }
     } else {
-        String::new()
+        None
     };
 }
 
@@ -212,7 +214,7 @@ mod tests {
     fn test_get_open_history() {
         let data_path = PathBuf::from("/home/liuning/tmp");
         let content = get_open_history(data_path);
-        println!("content: {}", content);
+        println!("content: {:?}", content);
     }
 
     #[test]

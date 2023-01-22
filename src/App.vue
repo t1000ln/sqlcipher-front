@@ -1,52 +1,112 @@
-<script setup lang="ts">
-// This starter template is using Vue 3 <script setup> SFCs
-// Check out https://vuejs.org/api/sfc-script-setup.html#script-setup
-import Greet from "./components/Greet.vue";
-</script>
-
 <template>
-  <div class="container">
-    <h1>Welcome to Tauri!</h1>
-
-    <div class="row">
-      <a href="https://vitejs.dev" target="_blank">
-        <img src="/vite.svg" class="logo vite" alt="Vite logo" />
-      </a>
-      <a href="https://tauri.app" target="_blank">
-        <img src="/tauri.svg" class="logo tauri" alt="Tauri logo" />
-      </a>
-      <a href="https://vuejs.org/" target="_blank">
-        <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
-      </a>
+  <div ref="outerContainer" class="layout">
+    <div ref="leftArea" class="left-area">
+      <NewFile></NewFile>
+      <hr class="vertical-splitter">
+      <History></History>
+      <hr class="vertical-splitter">
+      <Objects></Objects>
     </div>
-
-    <p>Click on the Tauri, Vite, and Vue logos to learn more.</p>
-
-    <p>
-      Recommended IDE setup:
-      <a href="https://code.visualstudio.com/" target="_blank">VS Code</a>
-      +
-      <a href="https://github.com/johnsoncodehk/volar" target="_blank">Volar</a>
-      +
-      <a href="https://github.com/tauri-apps/tauri-vscode" target="_blank"
-        >Tauri</a
-      >
-      +
-      <a href="https://github.com/rust-lang/rust-analyzer" target="_blank"
-        >rust-analyzer</a
-      >
-    </p>
-
-    <Greet />
+    <div ref="rightArea" class="right-area">右边内容</div>
+    <div ref="verticalLine" class="vertical-line" @mousedown="mouseDown"></div>
   </div>
 </template>
 
+<script lang="ts" setup>
+
+import {ref} from "vue";
+import History from "./components/History.vue";
+import NewFile from "./components/NewFile.vue";
+import Objects from "./components/Objects.vue";
+
+const outerContainer = ref();
+const verticalLine = ref();
+const leftArea = ref();
+const rightArea = ref();
+
+const leftWidth = 54;
+const rightToLeftGap = 4;
+const lineWidth = 6;
+const splitMinLeft = 56;
+const splitMaxLeft = 380;
+const leftLineGap = splitMinLeft - leftWidth;
+
+const mouseDown = (e: MouseEvent) => {
+  let disX = e.clientX;
+  verticalLine.value.left = verticalLine.value.offsetLeft;
+
+  outerContainer.value.onmousemove = function (e2: MouseEvent) {
+    let moveX = e2.clientX - disX;
+    let iT = verticalLine.value.left + moveX;
+    let maxT = outerContainer.value.clientWidth - verticalLine.value.offsetWidth;
+
+    iT < 0 && (iT = 0);
+    iT > maxT && (iT = maxT);
+
+    if (iT <= splitMinLeft || iT >= splitMaxLeft) {
+      return false;
+    }
+
+    let oLeftWidth = iT - leftLineGap;
+    let oRightMarginLeft = oLeftWidth + lineWidth + rightToLeftGap;
+
+    verticalLine.value.style.left = `${iT}px`;
+    leftArea.value.style.width = `${oLeftWidth}px`;
+    rightArea.value.style.marginLeft = `${oRightMarginLeft}px`;
+
+    return false;
+  }
+
+  outerContainer.value.onmouseup = function () {
+    outerContainer.value.onmousemove = null;
+    outerContainer.value.onmouseup = null;
+  }
+}
+</script>
+
 <style scoped>
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
+.layout {
+  /*border: 1px solid #24c8db;*/
+  height: 93vh;
+  position: relative;
+  margin: 20px auto;
+  box-sizing: border-box;
 }
 
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #249b73);
+.left-area {
+  width: 200px;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  height: 95vh;
+  overflow-y: scroll;
+  background-color: green;
+}
+
+
+.right-area {
+  margin-left: 210px;
+  background-color: pink;
+  height: 95vh;
+}
+
+.vertical-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 202px;
+  width: 6px;
+  background-color: #e7e7e7;
+  box-shadow: 0 0 8px #ccc;
+  cursor: col-resize;
+  text-align: center;
+  line-height: 95vh;
+}
+
+hr.vertical-splitter {
+  border: 0;
+  height: 1px;
+  background-color: #333;
+  background-image: linear-gradient(to right, #ccc, #333, #ccc);
 }
 </style>

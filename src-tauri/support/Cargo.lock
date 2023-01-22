@@ -4,9 +4,9 @@ version = 3
 
 [[package]]
 name = "api-resp"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b4a7c36468991a497ddd83df67b8b6f73c12b3bf2c5148d7733c8dd4de6e4c4"
+checksum = "57e0ed1607cabe5665dadfba2801ca84d576fb6f58b9f28d2fbfe3772d193a5e"
 dependencies = [
  "log",
  "serde",
