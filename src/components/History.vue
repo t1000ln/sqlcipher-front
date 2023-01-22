@@ -18,13 +18,19 @@
 import {onMounted, reactive} from "vue";
 import {History} from "../types/history";
 import {ApiResp, backApi, emitter} from "../types/common";
+import {ObjectNames} from "../types/metas";
 
 const cmp_data = reactive({
   his_data: [] as History[]
 });
 
 const refresh_db = (path: string) => {
-  console.log(path)
+  backApi("open_db", {dataPath: path}, (resp) => {
+    let r: ApiResp<ObjectNames> = JSON.parse(resp as string);
+    if (r.success) {
+      emitter.emit('meta_objects_refreshed', r.data)
+    }
+  });
 }
 
 emitter.on('add_history_success', _ => {
@@ -39,6 +45,7 @@ const load_history = () => {
   });
 }
 
+
 onMounted(() => {
   load_history();
 })
@@ -48,8 +55,6 @@ onMounted(() => {
 
 .his_area {
   position: relative;
-  max-height: 30vh;
-  overflow-y: scroll;
   /*border: 1px solid lightgray;*/
 }
 

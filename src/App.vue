@@ -1,9 +1,11 @@
 <template>
   <div ref="outerContainer" class="layout">
     <div ref="leftArea" class="left-area">
-      <NewFile></NewFile>
-      <hr class="vertical-splitter">
-      <History></History>
+      <div class="his-block">
+        <NewFile></NewFile>
+        <hr class="vertical-splitter">
+        <History></History>
+      </div>
       <hr class="vertical-splitter">
       <Objects></Objects>
     </div>
@@ -78,11 +80,13 @@ const mouseDown = (e: MouseEvent) => {
   position: absolute;
   top: 0;
   bottom: 0;
-  height: 95vh;
-  overflow-y: scroll;
-  background-color: green;
+  height: 100%;
 }
 
+.his-block {
+  height: 24%;
+  overflow-y: scroll;
+}
 
 .right-area {
   margin-left: 210px;

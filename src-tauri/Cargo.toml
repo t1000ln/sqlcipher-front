@@ -21,6 +21,8 @@ once_cell = "1.16.0"
 toml = "0.5.9"
 support = { path = "./support" }
 api-resp = "0.1.2"
+log = "0.4"
+fast_log = "1.5"
 
 [features]
 # by default Tauri runs in production mode

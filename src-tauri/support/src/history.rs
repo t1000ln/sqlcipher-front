@@ -7,6 +7,7 @@ use std::io::{Read, Write};
 use std::os::unix::fs::FileExt;
 use std::path::PathBuf;
 
+use log::error;
 use serde::{Deserialize, Serialize};
 use toml::de::Error as TomlError;
 use toml::Value;
@@ -21,6 +22,7 @@ struct HisList {
 struct His {
     name: String,
     path: String,
+    key: Option<String>,
 }
 
 /// 读取加载文件的历史列表。
@@ -40,7 +42,6 @@ struct His {
 /// ```
 pub fn get_open_history(mut data_path: PathBuf) -> Option<Value> {
     data_path.push("history.toml");
-    println!("读取缓存信息的文件为 {:?}", data_path);
     return if data_path.exists() {
         let mut file = File::open(data_path).unwrap();
         let mut content = String::new();
@@ -54,7 +55,7 @@ pub fn get_open_history(mut data_path: PathBuf) -> Option<Value> {
                 Some(his_arr.clone())
             }
             Err(e) => {
-                eprintln!("get open history error: {:?}", e);
+                error!("get open history error: {:?}", e);
                 None
             }
         }
@@ -82,7 +83,7 @@ pub fn get_open_history(mut data_path: PathBuf) -> Option<Value> {
 ///     assert!(false, "新增失败 {}", e);
 /// }
 /// ```
-pub fn add_open_history(mut data_path: PathBuf, name: String, path: String) -> std::io::Result<()> {
+pub fn add_open_history(mut data_path: PathBuf, name: String, path: String, key: Option<String>) -> std::io::Result<()> {
     data_path.push("history.toml");
     let mut file = File::options().write(true).read(true).create(true).append(false).open(data_path)?;
     let mut content = String::new();
@@ -96,6 +97,10 @@ pub fn add_open_history(mut data_path: PathBuf, name: String, path: String) -> s
                     let mut new_entry = toml::map::Map::new();
                     new_entry.insert("name".to_string(), toml::Value::String(name));
                     new_entry.insert("path".to_string(), toml::Value::String(path));
+                    if key.is_some() {
+                        new_entry.insert("key".to_string(), toml::Value::String(key.unwrap()));
+                    }
+
                     let array = list.as_array_mut().unwrap();
                     array.insert(0, toml::Value::Table(new_entry));
 
@@ -107,7 +112,12 @@ pub fn add_open_history(mut data_path: PathBuf, name: String, path: String) -> s
                     file.write_at(new_content.as_bytes(), 0)?;
                 }
                 None => {
-                    let new_content = format!("[[His]]\nname = \"{}\"\npath = \"{}\"\n\n", name, path);
+                    let new_content;
+                    if key.is_some() {
+                        new_content = format!("[[His]]\nname = \"{}\"\npath = \"{}\"\nkey=\"{}\"\n\n", name, path, key.unwrap());
+                    } else {
+                        new_content = format!("[[His]]\nname = \"{}\"\npath = \"{}\"\n\n", name, path);
+                    }
                     file.write(new_content.as_bytes())?;
                 }
             }
@@ -117,7 +127,7 @@ pub fn add_open_history(mut data_path: PathBuf, name: String, path: String) -> s
             Ok(())
         }
         Err(e) => {
-            eprintln!("add open history error: {:?}", e);
+            error!("add open history error: {:?}", e);
             Err(e.into())
         }
     }
@@ -198,7 +208,7 @@ pub fn remove_open_history(mut data_path: PathBuf, index: usize) -> std::io::Res
             Ok(())
         }
         Err(e) => {
-            eprintln!("add open history error: {:?}", e);
+            error!("add open history error: {:?}", e);
             Err(e.into())
         }
     }
@@ -220,7 +230,7 @@ mod tests {
     #[test]
     fn test_add_open_history() {
         let data_path = PathBuf::from("/home/liuning/tmp");
-        let result = add_open_history(data_path, "my.db".to_string(), "/home/liuning/.cache/my.db".to_string());
+        let result = add_open_history(data_path, "my2.db".to_string(), "/home/liuning/.cache/my.db".to_string(), Some("123456".to_string()));
         if let Err(e) = result {
             assert!(false, "新增失败 {}", e);
         }
