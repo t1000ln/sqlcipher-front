@@ -2,7 +2,8 @@
 
 use std::collections::HashMap;
 use std::error::Error;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
+use std::sync::{Arc, Mutex};
 
 use once_cell::sync::Lazy;
 use rbatis::Rbatis;
@@ -11,7 +12,7 @@ use rbdc_sqlite::driver::SqliteDriver;
 use rbdc_sqlite::SqliteConnectOptions;
 use serde::{Deserialize, Serialize};
 
-static mut OPENED_DBS: Lazy<HashMap<String, Rbatis>> = Lazy::new(|| HashMap::new());
+static OPENED_DBS: Lazy<Mutex<HashMap<String, Arc<Rbatis>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SqliteMeta {
@@ -24,21 +25,38 @@ pub struct SqliteMeta {
 
 impl_select!(SqliteMeta{select_cols(table_column: &str) => "`order by name"}, "sqlite_master");
 
-pub fn open_db_connections(db_path: &String, key: &Option<String>) -> Result<&'static Rbatis, Box<dyn Error>> {
+/// 打开或重新获取SQLITE数据库连接。
+///
+/// # Arguments
+///
+/// * `db_path`: 数据库文件路径。
+/// * `key`: 可选的密钥字符串。
+///
+/// returns: Result<Arc<Rbatis>, Box<dyn Error, Global>>
+///
+/// # Examples
+///
+/// ```
+/// use std::sync::Arc;
+/// use rbatis::Rbatis;
+/// let conn_ref: Arc<Rbatis> = open_db_connections(&"/home/foo/tmp/sqlite/sms.db".to_string(), &Some("123456".to_string())).unwrap();
+/// let mut rb: &Rbatis = conn_ref.deref();
+/// rb.exec("create table if not exists my_table (id text, name text, age integer)", vec![]).await.unwrap();
+/// ```
+pub fn open_db_connections(db_path: &String, key: &Option<String>) -> Result<Arc<Rbatis>, Box<dyn Error>> {
     let map_key = db_path.clone();
-    unsafe {
-        if !OPENED_DBS.contains_key(&map_key) {
-            let mut opts = SqliteConnectOptions::new();
-            opts.set_uri(map_key.as_str()).unwrap();
-            if let Some(key) = key {
-                opts = opts.pragma("key", key.clone());
-            }
-            let rb = Rbatis::new();
-            rb.init_opt(SqliteDriver {}, opts)?;
-            OPENED_DBS.deref_mut().insert(map_key.clone(), rb);
+    let mut map = OPENED_DBS.lock()?;
+    if !map.contains_key(&map_key) {
+        let mut opts = SqliteConnectOptions::new();
+        opts.set_uri(map_key.as_str()).unwrap();
+        if let Some(key) = key {
+            opts = opts.pragma("key", key.clone());
         }
-        Ok(&OPENED_DBS.deref().get(&map_key).unwrap())
+        let rb = Rbatis::new();
+        rb.init_opt(SqliteDriver {}, opts)?;
+        map.insert(map_key.clone(), Arc::new(rb));
     }
+    Ok(map.get(&map_key).unwrap().clone())
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -50,7 +68,9 @@ pub struct MetaResult {
 }
 
 pub async fn load_tables(db_path: String, key: Option<String>) -> Result<MetaResult, Box<dyn Error>> {
-    let mut rb = open_db_connections(&db_path, &key)?;
+    let rb = open_db_connections(&db_path, &key)?;
+    let mut rb = rb.deref();
+
     let mut metas = SqliteMeta::select_cols(&mut rb, "type as obj_type,name").await?;
     let talbe_opt = Some(String::from("table"));
     let view_opt = Some(String::from("view"));
@@ -88,9 +108,9 @@ mod tests {
             let result = open_db_connections(&"/home/liuning/tmp/my.db/sms.db".to_string(), &Some("123456".to_string()));
             match result {
                 Err(e) => assert!(false, "打开数据库失败 {}", e),
-                Ok(mut rb) => {
+                Ok(rb) => {
                     println!("第 {} 次正常开启数据库 {:?}", i, rb);
-
+                    let mut rb = rb.deref();
                     rb.exec("create table if not exists my_table (id text, name text, age integer)", vec![]).await.unwrap();
                     rb.exec("create view if not exists v_my_table as select id,name from my_table", vec![]).await.unwrap();
 
@@ -109,12 +129,12 @@ mod tests {
             let result = open_db_connections(&"/home/liuning/tmp/sqlite/my.db".to_string(), &Some("123456".to_string()));
             match result {
                 Err(e) => assert!(false, "打开数据库失败 {}", e),
-                Ok(mut rb) => {
+                Ok(rb) => {
                     println!("第 {} 次正常开启数据库 {:?}", i, rb);
 
                     // rb.exec("create table if not exists my_table (id text, name text, age integer)", vec![]).await.unwrap();
                     // rb.exec("create view if not exists v_my_table as select id,name from my_table", vec![]).await.unwrap();
-
+                    let mut rb = rb.deref();
                     let metas = SqliteMeta::select_cols(&mut rb, "type as obj_type,name").await;
                     match metas {
                         Err(e) => assert!(false, "查询元数据出错 {}", e),

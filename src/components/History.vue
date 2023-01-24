@@ -19,6 +19,7 @@ import {onMounted, reactive} from "vue";
 import {History} from "../types/history";
 import {ApiResp, backApi, emitter} from "../types/common";
 import {ObjectNames} from "../types/metas";
+import {ElMessage} from "element-plus";
 
 const cmp_data = reactive({
   his_data: [] as History[]
@@ -29,6 +30,8 @@ const refresh_db = (path: string) => {
     let r: ApiResp<ObjectNames> = JSON.parse(resp as string);
     if (r.success) {
       emitter.emit('meta_objects_refreshed', r.data)
+    } else {
+      ElMessage.error(r.message);
     }
   });
 }
