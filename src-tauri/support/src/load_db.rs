@@ -5,14 +5,18 @@ use std::error::Error;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 
+use api_resp::{ApiResp, DaoResult};
 use once_cell::sync::Lazy;
 use rbatis::Rbatis;
 use rbdc::db::ConnectOptions;
 use rbdc_sqlite::driver::SqliteDriver;
 use rbdc_sqlite::SqliteConnectOptions;
+use rbs::{to_value, Value};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 static OPENED_DBS: Lazy<Mutex<HashMap<String, Arc<Rbatis>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static COLUMN_NAME_REG: Lazy<Regex> = Lazy::new(|| Regex::new(r"\((.+)\)").unwrap());
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SqliteMeta {
@@ -91,14 +95,49 @@ pub async fn load_tables(db_path: String, key: Option<String>) -> Result<MetaRes
     Ok(result)
 }
 
-pub async fn fetch_rows(db_path: String, table_name: String, limit: u64, key: Option<String>) {
-    let mut rb = open_db_connections(&db_path, &key).unwrap();
-    // TODO 待添加查询动态表结构数据
+#[derive(Serialize, Deserialize)]
+pub struct TableData {
+    cols: Vec<String>,
+    rows: Vec<HashMap<String, Value>>,
 }
 
+pub async fn fetch_rows(db_path: String, table_name: String, limit: u64, key: Option<String>) -> DaoResult {
+    let conn = open_db_connections(&db_path, &key).unwrap();
+    let mut rb = conn.deref();
+
+    // 获取目标表的字段名列表
+    let meta: String = rb.fetch_decode("select sql from sqlite_master where name = ?", vec![to_value!(&table_name)]).await?;
+    let mut cols: Vec<String> = vec![];
+    let re = COLUMN_NAME_REG.captures(&meta);
+    if let Some(cap) = re {
+        let c = cap.get(1);
+        if let Some(c) = c {
+            let sc = c.as_str().split(",");
+            for s in sc {
+                for part in s.split(char::is_whitespace) {
+                    if !"".eq(part) {
+                        cols.push(part.to_string());
+                        break;
+                    }
+                }
+            }
+        } else {
+            return Ok(ApiResp::error(-1, "检查表结构时出错".to_string()));
+        }
+    }
+
+    // 查询数据
+    let rows: Vec<HashMap<String, Value>> = rb.fetch_decode(format!("select * from {} limit ?", table_name).as_str(), vec![to_value!(limit)]).await?;
+    Ok(ApiResp::success(serde_json::json!(TableData { cols, rows })))
+}
+
+#[sql("select * from `table_name`")]
+pub async fn dyn_select(rb: &Rbatis, table_name: &str) -> Vec<Vec<Value>> { impled!() }
 
 #[cfg(test)]
 mod tests {
+    use api_resp::TransformResult;
+
     use super::*;
 
     #[tokio::test]
@@ -156,6 +195,19 @@ mod tests {
             Ok(metas) => {
                 println!("查询到表名列表 {:?}", metas);
             }
+        }
+    }
+
+    #[tokio::test]
+    pub async fn test_dyn_select() {
+        fast_log::init(fast_log::Config::new().console()).expect("rbatis init fail");
+        let conn = open_db_connections(&"/home/liuning/tmp/sqlite/my.db".to_string(), &Some("123456".to_string())).unwrap();
+        let rb = conn.deref();
+        let result = fetch_rows("/home/liuning/tmp/sqlite/my.db".to_string(), "my_table".to_string(), 10, Some("123456".to_string())).await;
+        if let Err(e) = result {
+            assert!(false, "查询数据库失败 {}", e);
+        } else {
+            println!("查询到数据 {:?}", result.to_json_str("查询出错"));
         }
     }
 }

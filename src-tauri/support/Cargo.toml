@@ -18,3 +18,4 @@ rbs = { version = "0.1" }
 rbatis = { version = "4.0" }
 rbdc = "0.1.22"
 rbdc-sqlite = { version = "0.1" }
+regex = "1.7"

@@ -1140,6 +1140,7 @@ dependencies = [
  "rbdc",
  "rbdc-sqlite",
  "rbs",
+ "regex",
  "serde",
  "serde_json",
  "tokio",
