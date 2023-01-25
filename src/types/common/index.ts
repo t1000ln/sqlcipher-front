@@ -33,3 +33,25 @@ export const emitter = mitt();
 
 // 导出
 export default emitter;
+
+export declare type CurrentDbAndTable = {
+    /**
+     * 当前互动的数据文件路径。
+     */
+    db: string;
+    /**
+     * 当前互动的表名。
+     */
+    table?: string;
+    /**
+     * 当前数据的密钥
+     */
+    key?: string;
+
+    data?: any
+}
+
+export declare type TableData = {
+    cols?: string[],
+    rows?: object[]
+}

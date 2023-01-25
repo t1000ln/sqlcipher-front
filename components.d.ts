@@ -7,15 +7,20 @@ export {}
 
 declare module '@vue/runtime-core' {
   export interface GlobalComponents {
-    ElAside: typeof import('element-plus/es')['ElAside']
-    ElContainer: typeof import('element-plus/es')['ElContainer']
+    CustomSQL: typeof import('./src/components/CustomSQL.vue')['default']
+    ElDivider: typeof import('element-plus/es')['ElDivider']
     ElIcon: typeof import('element-plus/es')['ElIcon']
-    ElMain: typeof import('element-plus/es')['ElMain']
-    ElMenu: typeof import('element-plus/es')['ElMenu']
+    ElInput: typeof import('element-plus/es')['ElInput']
+    ElTable: typeof import('element-plus/es')['ElTable']
+    ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
+    ElTabPane: typeof import('element-plus/es')['ElTabPane']
+    ElTabs: typeof import('element-plus/es')['ElTabs']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
-    Greet: typeof import('./src/components/Greet.vue')['default']
     History: typeof import('./src/components/History.vue')['default']
+    MainContent: typeof import('./src/components/MainContent.vue')['default']
     NewFile: typeof import('./src/components/NewFile.vue')['default']
+    Notes: typeof import('./src/components/Notes.vue')['default']
     Objects: typeof import('./src/components/Objects.vue')['default']
+    TableContent: typeof import('./src/components/TableContent.vue')['default']
   }
 }

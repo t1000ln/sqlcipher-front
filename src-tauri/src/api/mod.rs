@@ -1,12 +1,12 @@
 //! 请描述文件用途。
 use std::path::PathBuf;
 
-use api_resp::ApiResp;
+use api_resp::{ApiResp, TransformResult};
 use log::error;
 use serde_json::json;
 
 use support::history::{add_open_history, get_open_history};
-use support::load_db::{load_tables, open_db_connections};
+use support::load_db::{exec_sql, fetch_rows, load_tables};
 
 use crate::get_config_dir;
 
@@ -40,8 +40,8 @@ pub async fn add_history(path: String, cache_file: Option<String>, key: Option<S
 
 
 #[tauri::command]
-pub async fn open_db(data_path: String) -> String {
-    let load_result = load_tables(data_path, Some("123456".to_string())).await;
+pub async fn open_db(db_path: String) -> String {
+    let load_result = load_tables(db_path, Some("123456".to_string())).await;
     match load_result {
         Ok(metas) => {
             ApiResp::success(json!(metas)).to_json()
@@ -51,4 +51,15 @@ pub async fn open_db(data_path: String) -> String {
             ApiResp::error(-1, e.to_string()).to_json()
         }
     }
+}
+
+
+#[tauri::command]
+pub async fn fetch_table_data(db_path: String, table_name: String, limit: u64) -> String {
+    fetch_rows(db_path, table_name.clone(), limit, Some("123456".to_string())).await.to_json_str(format!("加载表 {} 的数据时出错", table_name))
+}
+
+#[tauri::command]
+pub async fn exec_custom_sql(db_path: String, sql: String, key: Option<String>) -> String {
+    exec_sql(db_path, sql.as_str(), key).await.to_json_str(format!("执行自定义SQL: {} 时出错", sql))
 }

@@ -9,7 +9,9 @@
       <hr class="vertical-splitter">
       <Objects></Objects>
     </div>
-    <div ref="rightArea" class="right-area">右边内容</div>
+    <div ref="rightArea" class="right-area">
+      <MainContent></MainContent>
+    </div>
     <div ref="verticalLine" class="vertical-line" @mousedown="mouseDown"></div>
   </div>
 </template>
@@ -20,6 +22,7 @@ import {ref} from "vue";
 import History from "./components/History.vue";
 import NewFile from "./components/NewFile.vue";
 import Objects from "./components/Objects.vue";
+import MainContent from "./components/MainContent.vue";
 
 const outerContainer = ref();
 const verticalLine = ref();

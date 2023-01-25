@@ -17,7 +17,7 @@
 
 import {onMounted, reactive} from "vue";
 import {History} from "../types/history";
-import {ApiResp, backApi, emitter} from "../types/common";
+import {ApiResp, backApi, CurrentDbAndTable, emitter} from "../types/common";
 import {ObjectNames} from "../types/metas";
 import {ElMessage} from "element-plus";
 
@@ -26,10 +26,11 @@ const cmp_data = reactive({
 });
 
 const refresh_db = (path: string) => {
-  backApi("open_db", {dataPath: path}, (resp) => {
+  backApi("open_db", {dbPath: path}, (resp) => {
     let r: ApiResp<ObjectNames> = JSON.parse(resp as string);
     if (r.success) {
-      emitter.emit('meta_objects_refreshed', r.data)
+      let current: CurrentDbAndTable = {db: path, data: r.data}
+      emitter.emit('meta_objects_refreshed', current)
     } else {
       ElMessage.error(r.message);
     }
@@ -43,7 +44,6 @@ emitter.on('add_history_success', _ => {
 const load_history = () => {
   backApi("load_history", {}, (resp) => {
     let r: ApiResp<History[]> = JSON.parse(resp as string);
-    console.log(r);
     cmp_data.his_data = r.data;
   });
 }

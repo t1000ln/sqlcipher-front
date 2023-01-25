@@ -1,26 +1,34 @@
 <template>
   <div class="objects-area">
     <div v-for="item in obj_lists.table_names">
-      {{ item }}
+      <span class="table-name" @click="reloadTableData(item)">{{ item }}</span>
     </div>
   </div>
 </template>
 
 <script lang="ts" name="Objects" setup>
-import emitter from "../types/common";
+import emitter, {CurrentDbAndTable} from "../types/common";
 import {reactive} from "vue";
 import {ObjectNames} from "../types/metas";
+
+const pageCache = reactive({current: {} as CurrentDbAndTable});
 
 const obj_lists = reactive<ObjectNames>({
   table_names: [],
   view_names: []
 })
 
-emitter.on('meta_objects_refreshed', (new_objs) => {
-  console.log(new_objs);
-  obj_lists.table_names = (new_objs as ObjectNames).table_names;
-  obj_lists.view_names = (new_objs as ObjectNames).view_names;
+emitter.on('meta_objects_refreshed', (newCurrent) => {
+  pageCache.current = newCurrent as CurrentDbAndTable;
+  let data = pageCache.current.data as ObjectNames;
+  obj_lists.table_names = data.table_names;
+  obj_lists.view_names = data.view_names;
 });
+
+const reloadTableData = (table_name: string) => {
+  pageCache.current.table = table_name;
+  emitter.emit('fetch_table_data', pageCache.current);
+}
 
 </script>
 
@@ -28,5 +36,10 @@ emitter.on('meta_objects_refreshed', (new_objs) => {
 .objects-area {
   height: 76%;
   overflow-y: scroll;
+}
+
+.table-name:hover {
+  background-color: lightskyblue;
+  border-radius: 4px;
 }
 </style>

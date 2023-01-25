@@ -71,6 +71,27 @@ pub struct MetaResult {
     key: Option<String>,
 }
 
+/// 加载已定义的表和视图列表。
+///
+/// # Arguments
+///
+/// * `db_path`: 数据库文件路径。
+/// * `key`: 可选的密钥。
+///
+/// returns: Result<MetaResult, Box<dyn Error, Global>>
+///
+/// # Examples
+///
+/// ```
+/// fast_log::init(fast_log::Config::new().console()).expect("rbatis init fail");
+/// let load_result = load_tables("/home/liuning/tmp/my.db/sms.db".to_string(), Some("123456".to_string())).await;
+/// match load_result {
+///     Err(e) => assert!(false, "查询表名失败 {}", e),
+///     Ok(metas) => {
+///         println!("查询到表名列表 {:?}", metas);
+///     }
+/// }
+/// ```
 pub async fn load_tables(db_path: String, key: Option<String>) -> Result<MetaResult, Box<dyn Error>> {
     let rb = open_db_connections(&db_path, &key)?;
     let mut rb = rb.deref();
@@ -101,9 +122,31 @@ pub struct TableData {
     rows: Vec<HashMap<String, Value>>,
 }
 
+/// 无条件查询目标表的数据（仅限制返回条数）。
+///
+/// # Arguments
+///
+/// * `db_path`: 数据库文件路径。
+/// * `table_name`: 目标表名。
+/// * `limit`: 限制返回条数，应大于0。
+/// * `key`: 可选的密钥。
+///
+/// returns: Result<ApiResp, Box<dyn Error, Global>>
+///
+/// # Examples
+///
+/// ```
+/// fast_log::init(fast_log::Config::new().console()).expect("rbatis init fail");
+/// let result = fetch_rows("/home/liuning/tmp/sqlite/my.db".to_string(), "my_table".to_string(), 10, Some("123456".to_string())).await;
+/// if let Err(e) = result {
+///     assert!(false, "查询数据库失败 {}", e);
+/// } else {
+///     println!("查询到数据 {:?}", result.to_json_str("查询出错"));
+/// }
+/// ```
 pub async fn fetch_rows(db_path: String, table_name: String, limit: u64, key: Option<String>) -> DaoResult {
-    let conn = open_db_connections(&db_path, &key).unwrap();
-    let mut rb = conn.deref();
+    let conn = open_db_connections(&db_path, &key)?;
+    let rb = conn.deref();
 
     // 获取目标表的字段名列表
     let meta: String = rb.fetch_decode("select sql from sqlite_master where name = ?", vec![to_value!(&table_name)]).await?;
@@ -131,8 +174,55 @@ pub async fn fetch_rows(db_path: String, table_name: String, limit: u64, key: Op
     Ok(ApiResp::success(serde_json::json!(TableData { cols, rows })))
 }
 
-#[sql("select * from `table_name`")]
-pub async fn dyn_select(rb: &Rbatis, table_name: &str) -> Vec<Vec<Value>> { impled!() }
+
+/// 执行用户输入的SQL语句。
+///
+/// # Arguments
+///
+/// * `db_path`: 数据库文件路径。
+/// * `sql`: 用户SQL。
+/// * `key`: 可选的密钥。
+///
+/// returns: Result<ApiResp, Box<dyn Error, Global>> 若是查询语句(或explain语句)返回`Vec<HashMap<String, Value>>`结构的数据，否则返回更新行数信息。
+///
+/// # Examples
+///
+/// ```
+/// fast_log::init(fast_log::Config::new().console()).expect("rbatis init fail");
+/// let query_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "select rowid, * from my_table", Some("123456".to_string())).await;
+/// if let Err(e) = query_result {
+///     assert!(false, "查询数据库失败: {}", e);
+/// } else {
+///     println!("查询到数据 {:?}", query_result.to_json_str("查询出错"));
+/// }
+///
+/// let insert_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "insert into my_table(id,name) values(2,'lisi')", Some("123456".to_string())).await;
+/// if let Err(e) = insert_result {
+///     assert!(false, "更新数据库失败: {}", e);
+/// } else {
+///     println!("本次操作结果 {:?}", insert_result.to_json_str("操作出错"));
+/// }
+/// ```
+pub async fn exec_sql(db_path: String, sql: &str, key: Option<String>) -> DaoResult {
+    let conn = open_db_connections(&db_path, &key)?;
+    let rb = conn.deref();
+
+    match sql.trim().to_lowercase().as_str() {
+        s if s.starts_with("select") => {
+            let rows: Vec<HashMap<String, Value>> = rb.fetch_decode(s, vec![]).await?;
+            Ok(ApiResp::success(serde_json::json!(rows)))
+        }
+        s if s.starts_with("explain") => {
+            let result: Vec<HashMap<String, Value>> = rb.fetch_decode(s, vec![]).await?;
+            Ok(ApiResp::success(serde_json::json!(result)))
+        }
+        _ => {
+            let result = rb.exec(sql, vec![]).await?;
+            Ok(ApiResp::success(serde_json::json!(result)))
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -199,15 +289,52 @@ mod tests {
     }
 
     #[tokio::test]
-    pub async fn test_dyn_select() {
+    pub async fn test_fetch_rows() {
         fast_log::init(fast_log::Config::new().console()).expect("rbatis init fail");
-        let conn = open_db_connections(&"/home/liuning/tmp/sqlite/my.db".to_string(), &Some("123456".to_string())).unwrap();
-        let rb = conn.deref();
         let result = fetch_rows("/home/liuning/tmp/sqlite/my.db".to_string(), "my_table".to_string(), 10, Some("123456".to_string())).await;
         if let Err(e) = result {
             assert!(false, "查询数据库失败 {}", e);
         } else {
             println!("查询到数据 {:?}", result.to_json_str("查询出错"));
+        }
+    }
+
+    #[tokio::test]
+    pub async fn test_exec_sql() {
+        fast_log::init(fast_log::Config::new().console()).expect("rbatis init fail");
+        let query_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "select rowid, * from my_table", Some("123456".to_string())).await;
+        if let Err(e) = query_result {
+            assert!(false, "查询数据库失败: {}", e);
+        } else {
+            println!("查询到数据 {:?}", query_result.to_json_str("查询出错"));
+        }
+
+        let insert_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "insert into my_table(id,name) values(3,'lisi')", Some("123456".to_string())).await;
+        if let Err(e) = insert_result {
+            assert!(false, "更新数据库失败: {}", e);
+        } else {
+            println!("本次操作结果 {:?}", insert_result.to_json_str("操作出错"));
+        }
+
+        let delete_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "delete from my_table where rowid = 3", Some("123456".to_string())).await;
+        if let Err(e) = delete_result {
+            assert!(false, "更新数据库失败: {}", e);
+        } else {
+            println!("本次操作结果 {:?}", delete_result.to_json_str("操作出错"));
+        }
+
+        let create_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "create table if not exists my_table(id integer,etime text,name text)", Some("123456".to_string())).await;
+        if let Err(e) = create_result {
+            assert!(false, "更新数据库失败: {}", e);
+        } else {
+            println!("本次操作结果 {:?}", create_result.to_json_str("操作出错"));
+        }
+
+        let explain_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "explain query plan select rowid,* from my_table", Some("123456".to_string())).await;
+        if let Err(e) = explain_result {
+            assert!(false, "更新数据库失败: {}", e);
+        } else {
+            println!("本次操作结果 {:?}", explain_result.to_json_str("操作出错"));
         }
     }
 }
