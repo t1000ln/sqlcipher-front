@@ -1,5 +1,5 @@
 <template>
-  <el-table :data="tableDataState.rows" border height="90vh" stripe style="width: 100%">
+  <el-table :data="tableDataState.rows" border height="84vh" stripe style="width: 100%">
     <el-table-column v-for="(item, index) in tableDataState.cols" :key="index" :label="item" :prop="item"
                      align="center"></el-table-column>
   </el-table>
@@ -16,7 +16,6 @@ const tableDataState = reactive({
 });
 
 emitter.on('refresh_table_data', (newData) => {
-  console.log(newData);
   let nd = newData as TableData;
   if (nd.cols !== undefined) {
     tableDataState.cols = nd.cols;

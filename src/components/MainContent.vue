@@ -29,7 +29,6 @@ const defaultLimit = 100;
 const currentLimit = ref(defaultLimit);
 
 emitter.on('fetch_table_data', (current) => {
-  console.log('内容展示页面接收到刷新表格申请', current);
   fetchTableData(current as CurrentDbAndTable);
 });
 
@@ -41,7 +40,6 @@ const fetchTableData = (currentMeta: CurrentDbAndTable) => {
   }, (resp) => {
     let r: ApiResp<TableData> = JSON.parse(resp as string);
     if (r.success) {
-      console.log(r.data)
       emitter.emit('refresh_table_data', r.data);
       activeTabName.value = 'explore';
     } else {
