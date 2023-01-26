@@ -72,3 +72,14 @@ export declare type SelectedLines = {
     min: number,
     max: number,
 }
+
+export declare type EditApiParams = {
+    dbPath: string,
+    tableName?: string,
+    key?: string,
+    delRows?: number[],
+    newRows?: object[],
+    editRows?: object,
+}
+
+

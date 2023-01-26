@@ -170,7 +170,7 @@ pub async fn fetch_rows(db_path: String, table_name: String, limit: u64, key: Op
     }
 
     // 查询数据
-    let rows: Vec<HashMap<String, Value>> = rb.fetch_decode(format!("select * from {} limit ?", table_name).as_str(), vec![to_value!(limit)]).await?;
+    let rows: Vec<HashMap<String, Value>> = rb.fetch_decode(format!("select rowid,* from {} limit ?", table_name).as_str(), vec![to_value!(limit)]).await?;
     Ok(ApiResp::success(serde_json::json!(TableData { cols, rows })))
 }
 
@@ -221,6 +221,10 @@ pub async fn exec_sql(db_path: String, sql: &str, key: Option<String>) -> DaoRes
             Ok(ApiResp::success(serde_json::json!(result)))
         }
     }
+}
+
+pub async fn edit_data(db_path: String, table_name: String, key: Option<String>, new_rows: Vec<HashMap<String, String>>, update_rows: Vec<HashMap<String, String>>, del_rows: Vec<u64>) -> DaoResult {
+    Ok(ApiResp::suc())
 }
 
 

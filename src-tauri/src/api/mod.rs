@@ -1,5 +1,7 @@
 //! 请描述文件用途。
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::process::exit;
 
 use api_resp::{ApiResp, TransformResult};
 use log::error;
@@ -62,4 +64,13 @@ pub async fn fetch_table_data(db_path: String, table_name: String, limit: u64) -
 #[tauri::command]
 pub async fn exec_custom_sql(db_path: String, sql: String, key: Option<String>) -> String {
     exec_sql(db_path, sql.as_str(), key).await.to_json_str(format!("执行自定义SQL: {} 时出错", sql))
+}
+
+#[tauri::command]
+pub async fn update_table_data(db_path: String, table_name: String, key: Option<String>, del_rows: Option<Vec<u64>>, new_rows: Option<serde_json::Value>, edit_rows: Option<serde_json::Value>) -> String {
+    println!("待删除的数据：{:?}", del_rows);
+    println!("待添加的数据：{:?}", new_rows);
+    println!("待更新的数据：{:?}", edit_rows);
+    exit(0);
+    ApiResp::suc().to_json()
 }

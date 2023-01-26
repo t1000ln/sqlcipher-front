@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="main-content">
     <el-tabs v-model="activeTabName" type="border-card">
       <el-tab-pane label="浏览数据" name="explore">
         <TableContent></TableContent>
@@ -49,6 +49,8 @@ const fetchTableData = (currentMeta: CurrentDbAndTable) => {
 }
 </script>
 
-<style lang="scss" scoped>
-
+<style scoped>
+.main-content {
+  height: 94vh;
+}
 </style>
