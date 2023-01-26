@@ -55,3 +55,20 @@ export declare type TableData = {
     cols?: string[],
     rows?: object[]
 }
+
+
+export declare type ExecParam = {
+    dbPath: string,
+    sql: string,
+    key?: string
+}
+
+export declare type SqlSelection = {
+    fromLineNum: number,
+    toLineNum: number
+}
+
+export declare type SelectedLines = {
+    min: number,
+    max: number,
+}

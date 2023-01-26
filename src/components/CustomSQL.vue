@@ -13,22 +13,23 @@
         </el-icon>
       </el-tooltip>
 
-      <el-tooltip :show-after="1000" content="注释单行或多行 (Ctrl+b)" placement="top">
+      <el-tooltip :show-after="1000" content="注释单行或多行 (Ctrl+B)" placement="top">
         <el-icon class="icons" @click="commentLine">
           <Expand></Expand>
         </el-icon>
       </el-tooltip>
 
-      <el-tooltip :show-after="1000" content="移除单行或多行前面的注释 (Alt+b)" placement="top">
+      <el-tooltip :show-after="1000" content="移除单行或多行前面的注释 (Ctrl+Shift+B)" placement="top">
         <el-icon class="icons" @click="uncommentLine">
           <Fold></Fold>
         </el-icon>
       </el-tooltip>
 
     </div>
-    <div ref="sqlContent" class="sql-content" contenteditable="true" @keydown.ctrl.enter="execSql"
-         @keydown.ctrl.shift.f="formatSql" @keydown.alt.b="uncommentLine"
-         @keydown.ctrl.b="commentLine"
+    <div ref="sqlContent" class="sql-content" contenteditable="true"
+         @mouseup="rememberSelection"
+         @keydown.ctrl.enter="execSql" @keydown.ctrl.shift.f="formatSql"
+         @keydown.ctrl.shift.b="uncommentLine" @keydown.ctrl.b="commentLine"
     ></div>
     <div v-show="showDataArea" ref="dataArea" class="result-content">
       <el-table v-show="showArrayTable" :data="dataState.arrayResult" :height="resultTableHeight" border
@@ -46,9 +47,10 @@
 <script lang="ts" name="CustomSQL" setup>
 
 import {reactive, ref} from "vue";
-import {ApiResp, backApi, CurrentDbAndTable, emitter} from "../types/common";
+import {ApiResp, backApi, CurrentDbAndTable, emitter, ExecParam, SelectedLines, SqlSelection} from "../types/common";
 import {ElMessage} from "element-plus";
 import {format} from 'sql-formatter';
+
 
 const sqlContent = ref();
 const dataArea = ref();
@@ -57,7 +59,10 @@ const showDataArea = ref(false);
 const showArrayTable = ref(false);
 const showActionResult = ref(false);
 const pageCache = reactive({current: {} as CurrentDbAndTable});
-
+const sqlSelection = reactive<SqlSelection>({
+  fromLineNum: -1,
+  toLineNum: -1,
+});
 
 const dataState = reactive({
   arrayResult: [] as any[],
@@ -69,11 +74,6 @@ emitter.on('meta_objects_refreshed', (newCurrent) => {
   pageCache.current = newCurrent as CurrentDbAndTable;
 });
 
-declare type ExecParam = {
-  dbPath: string,
-  sql: string,
-  key?: string
-}
 
 const execSql = () => {
   if (pageCache.current.db !== undefined) {
@@ -144,31 +144,35 @@ const formatSql = () => {
 
 /**
  * 注释光标所在行或选中的多个行。
- * 注意：快捷键冲突-_-!
- * 注释和反注释两个快捷键不能使用`Ctrl+b`和`Ctrl+Shift+b`，只能使用`Ctrl+b`和`Alt+b`这样的组合。
- * 目前原因不明。
  */
-const commentLine = () => {
+const commentLine = (e: Event) => {
+  /*
+  解决快捷键多重激发的问题：约定当前函数的快捷键为`Ctrl+b`，
+  当按下`Ctrl+Shift+b`时也会触发本方法，所以需要进行检测拦截。
+   */
+  if (e instanceof KeyboardEvent && (e as KeyboardEvent).shiftKey) {
+    return;
+  }
+
   let sqlDiv = sqlContent.value;
 
   /*
   根据当前光标所在位置，或所选区域，计算出将要添加注释字符的行。
    */
   let fromLineNum = -1, toLineNum = -1;
-  let s = window.getSelection();
-  if (s !== null) {
-    let y1 = -1, y2 = -1;
-    for (let i = 0; i < sqlDiv.childNodes.length; i++) {
-      if (s.anchorNode.textContent == sqlDiv.childNodes[i].innerText) {
-        y1 = i;
-      } else if (s.focusNode.textContent == sqlDiv.childNodes[i].innerText) {
-        y2 = i;
-      }
-    }
-    fromLineNum = Math.min(y1, y2);
-    toLineNum = Math.max(y1, y2);
+  if (e instanceof MouseEvent) {
+    fromLineNum = sqlSelection.fromLineNum;
+    toLineNum = sqlSelection.toLineNum;
+    console.log(fromLineNum, toLineNum)
+  } else {
+    let s = window.getSelection();
+    if (s) {
+      let selected = calcSelectionRange(sqlDiv, s);
+      fromLineNum = selected.min;
+      toLineNum = selected.max;
 
-    s.removeAllRanges();
+      s.collapseToEnd();
+    }
   }
 
   /*
@@ -177,40 +181,45 @@ const commentLine = () => {
   if (toLineNum > -1) {
     if (fromLineNum > -1) {
       for (let i = fromLineNum; i <= toLineNum; i++) {
-        sqlDiv.childNodes[i].innerText = '--' + sqlDiv.childNodes[i].innerText;
+        let n = sqlDiv.childNodes[i];
+        if (n.nodeName == '#text') {
+          n.nodeValue = '--' + n.nodeValue;
+        } else {
+          n.innerText = '--' + n.innerText;
+        }
       }
     } else {
-      sqlDiv.childNodes[toLineNum].innerText = '--' + sqlDiv.childNodes[toLineNum].innerText;
+      let n = sqlDiv.childNodes[toLineNum];
+      if (n.nodeName == '#text') {
+        n.nodeValue = '--' + n.nodeValue;
+      } else {
+        n.innerText = '--' + n.innerText;
+      }
     }
   }
 }
 
 /**
  * 移除光标所在行或选中的多个行前面的注释字符串。
- * 注意：快捷键冲突-_-!
- * 注释和反注释两个快捷键不能使用`Ctrl+b`和`Ctrl+Shift+b`，只能使用`Ctrl+b`和`Alt+b`这样的组合。
- * 目前原因不明。
  */
-const uncommentLine = () => {
+const uncommentLine = (e: Event) => {
   let sqlDiv = sqlContent.value;
   /*
-  根据当前光标所在位置，或所选区域，计算出将要添加注释字符的行。
+  根据当前光标所在位置，或所选区域，计算出将要移除注释字符的行。
    */
   let fromLineNum = -1, toLineNum = -1;
-  let s = window.getSelection();
-  if (s !== null) {
-    let y1 = -1, y2 = -1;
-    for (let i = 0; i < sqlDiv.childNodes.length; i++) {
-      if (s.anchorNode.textContent == sqlDiv.childNodes[i].innerText) {
-        y1 = i;
-      } else if (s.focusNode.textContent == sqlDiv.childNodes[i].innerText) {
-        y2 = i;
-      }
-    }
-    fromLineNum = Math.min(y1, y2);
-    toLineNum = Math.max(y1, y2);
+  if (e instanceof MouseEvent) {
+    fromLineNum = sqlSelection.fromLineNum;
+    toLineNum = sqlSelection.toLineNum;
+  } else {
+    let s = window.getSelection();
+    if (s) {
+      let selected = calcSelectionRange(sqlDiv, s);
+      fromLineNum = selected.min;
+      toLineNum = selected.max;
 
-    s.removeAllRanges();
+      s.collapseToEnd();
+    }
   }
 
   /*
@@ -219,15 +228,68 @@ const uncommentLine = () => {
   if (toLineNum > -1) {
     if (fromLineNum > -1) {
       for (let i = fromLineNum; i <= toLineNum; i++) {
-        if (sqlDiv.childNodes[i].innerText.trim().startsWith('--')) {
-          sqlDiv.childNodes[i].innerText = sqlDiv.childNodes[i].innerText.replace(/\s*--/, '');
+        let n = sqlDiv.childNodes[i];
+        let text = (n.nodeName == '#text') ? n.nodeValue : n.innerText;
+        if (text.startsWith('--')) {
+          if (n.nodeName == '#text') {
+            n.nodeValue = n.nodeValue.replace(/\s*--/, '');
+          } else {
+            n.innerText = n.innerText.replace(/\s*--/, '');
+          }
         }
       }
     } else {
-      if (sqlDiv.childNodes[toLineNum].innerText.trim().startsWith('--')) {
-        sqlDiv.childNodes[toLineNum].innerText = sqlDiv.childNodes[toLineNum].innerText.replace(/\s*--/, '');
+      let n = sqlDiv.childNodes[toLineNum];
+      let text = (n.nodeName == '#text') ? n.nodeValue : n.innerText;
+      if (text.trim().startsWith('--')) {
+        if (n.nodeName == '#text') {
+          n.nodeValue = n.nodeValue.replace(/\s*--/, '');
+        } else {
+          n.innerText = n.innerText.replace(/\s*--/, '');
+        }
       }
     }
+  }
+}
+
+
+/**
+ * 编辑框失去焦点时，记录选区位置。
+ */
+const rememberSelection = function (e: MouseEvent) {
+  // console.log('开始处理选区');
+
+  let sqlDiv = sqlContent.value;
+  let s = window.getSelection();
+
+  if (s) {
+    let selected = calcSelectionRange(sqlDiv, s);
+    sqlSelection.fromLineNum = selected.min;
+    sqlSelection.toLineNum = selected.max;
+    // 这里不能收缩选区，否则会导致无法选择的BUG。
+  }
+  // console.log('完成处理选区', sqlSelection.fromLineNum, sqlSelection.toLineNum);
+}
+
+/**
+ * 计算DIV选区的起始行号和结束行号，若未选择则给出光标所在行号。
+ * @param sqlDiv SQL编辑区的DIV对象。
+ * @param s 选区对象。
+ */
+const calcSelectionRange = (sqlDiv: any, s: Selection): SelectedLines => {
+  let y1 = -1, y2 = -1;
+  for (let i = 0; i < sqlDiv.childNodes.length; i++) {
+    let n = sqlDiv.childNodes[i];
+    let text = (n.nodeName == '#text') ? n.nodeValue : n.innerText;
+    if (s.anchorNode && s.anchorNode.textContent == text) {
+      y1 = i;
+    } else if (s.focusNode && s.focusNode.textContent == text) {
+      y2 = i;
+    }
+  }
+  return {
+    min: Math.min(y1, y2),
+    max: Math.max(y1, y2),
   }
 }
 </script>
