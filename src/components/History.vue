@@ -1,14 +1,20 @@
 <template>
   <div class="his_area">
-    <div v-for="item in cmp_data.his_data">
-      <el-tooltip :content="item.path" effect="light" placement="top-end">
-        <span>{{ item.name }}</span>
-      </el-tooltip>
-      <span class="open-his-act" @click="refresh_db(item.path)">
-      <el-icon>
-        <Refresh/>
+    <div v-for="(item, index) in cmp_data.his_data" :key="index">
+      <el-icon class="open-his-act" @click="refresh_db(item)">
+        <ZoomIn/>
       </el-icon>
-    </span>
+      <span>{{ item.name }}</span>
+      <el-tooltip :content="item.path" :show-after="1000" placement="top">
+        <el-icon class="path-icon">
+          <Location></Location>
+        </el-icon>
+      </el-tooltip>
+      <span class="delete-icon">
+        <el-icon @click="deleteEntry(item.path, index)">
+          <Delete/>
+        </el-icon>
+      </span>
     </div>
   </div>
 </template>
@@ -19,17 +25,21 @@ import {onMounted, reactive} from "vue";
 import {History} from "../types/history";
 import {ApiResp, backApi, CurrentDbAndTable, emitter} from "../types/common";
 import {ObjectNames} from "../types/metas";
-import {ElMessage} from "element-plus";
+import {ElMessage, ElMessageBox} from "element-plus";
 
 const cmp_data = reactive({
   his_data: [] as History[]
 });
 
-const refresh_db = (path: string) => {
-  backApi("open_db", {dbPath: path}, (resp) => {
+const refresh_db = async (item: History) => {
+  let params: { [k: string]: string } = {'dbPath': item.path};
+  if (item.key) {
+    params['key'] = item.key;
+  }
+  await backApi("open_db", params, (resp) => {
     let r: ApiResp<ObjectNames> = JSON.parse(resp as string);
     if (r.success) {
-      let current: CurrentDbAndTable = {db: path, data: r.data}
+      let current: CurrentDbAndTable = {db: item.path, data: r.data}
       emitter.emit('meta_objects_refreshed', current)
     } else {
       ElMessage.error(r.message);
@@ -48,7 +58,18 @@ const load_history = () => {
   });
 }
 
-
+const deleteEntry = async (path: string, index: number) => {
+  await ElMessageBox.confirm('要取消<' + path + '>缓存吗？', '提醒').then(() => {
+    backApi("remove_history_entry", {index: index}, (resp) => {
+      let r: ApiResp<null> = JSON.parse(resp as string);
+      if (r.success) {
+        load_history();
+        emitter.emit('remove_history_success');
+      }
+    });
+  }).catch((err) => {
+  })
+}
 onMounted(() => {
   load_history();
 })
@@ -59,6 +80,7 @@ onMounted(() => {
 .his_area {
   position: relative;
   /*border: 1px solid lightgray;*/
+
 }
 
 .his_area div {
@@ -70,14 +92,26 @@ onMounted(() => {
   background-color: lightskyblue;
 }
 
-.open-his-act {
+.delete-icon {
   float: right;
   padding: .1em .5em;
 }
 
-.open-his-act:hover {
+.delete-icon:hover {
   cursor: pointer;
 }
 
+.open-his-act {
+  margin-right: 1em;
+}
 
+.open-his-act:hover {
+  cursor: pointer;
+  color: purple;
+  font-size: 1.1em;
+}
+
+.path-icon {
+  margin-left: .5em;
+}
 </style>

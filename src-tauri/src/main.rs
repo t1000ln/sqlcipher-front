@@ -19,7 +19,7 @@ pub static mut CONFIG_DIR: Lazy<Option<PathBuf>> = Lazy::new(|| None);
 fn main() {
     fast_log::init(fast_log::Config::new().console()).expect("log init fail");
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![load_history,add_history,open_db,fetch_table_data,exec_custom_sql,update_table_data])
+        .invoke_handler(tauri::generate_handler![load_history,add_history,open_db,fetch_table_data,exec_custom_sql,update_table_data,remove_history_entry])
         .setup(|app| {
             let cache_dir = app.path_resolver().app_cache_dir();
             if let Some(cache_dir) = cache_dir {

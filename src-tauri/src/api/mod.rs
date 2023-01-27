@@ -5,7 +5,7 @@ use api_resp::{ApiResp, TransformResult};
 use log::error;
 use serde_json::json;
 
-use support::history::{add_open_history, get_open_history};
+use support::history::{add_open_history, get_open_history, remove_open_history};
 use support::load_db::{edit_data, exec_sql, fetch_rows, load_tables};
 
 use crate::get_config_dir;
@@ -38,10 +38,21 @@ pub async fn add_history(path: String, cache_file: Option<String>, key: Option<S
     }
 }
 
+#[tauri::command]
+pub async fn remove_history_entry(index: usize, cache_file: Option<String>) -> String {
+    let data_path = if cache_file.is_none() { get_config_dir() } else { PathBuf::from(cache_file.unwrap()) };
+    let remove_result = remove_open_history(data_path, index);
+    if let Err(e) = remove_result {
+        error!("移除缓存时出错 {:?}", e);
+        ApiResp::error(-1, e.to_string()).to_json()
+    } else {
+        ApiResp::suc().to_json()
+    }
+}
 
 #[tauri::command]
-pub async fn open_db(db_path: String) -> String {
-    let load_result = load_tables(db_path, Some("123456".to_string())).await;
+pub async fn open_db(db_path: String, key: Option<String>) -> String {
+    let load_result = load_tables(db_path, key).await;
     match load_result {
         Ok(metas) => {
             ApiResp::success(json!(metas)).to_json()
@@ -55,8 +66,8 @@ pub async fn open_db(db_path: String) -> String {
 
 
 #[tauri::command]
-pub async fn fetch_table_data(db_path: String, table_name: String, limit: u64) -> String {
-    fetch_rows(db_path, table_name.clone(), limit, Some("123456".to_string())).await.to_json_str(format!("加载表 {} 的数据时出错", table_name))
+pub async fn fetch_table_data(db_path: String, table_name: String, limit: u64, key: Option<String>) -> String {
+    fetch_rows(db_path, table_name.clone(), limit, key).await.to_json_str(format!("加载表 {} 的数据时出错", table_name))
 }
 
 #[tauri::command]

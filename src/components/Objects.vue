@@ -1,7 +1,7 @@
 <template>
   <div class="objects-area">
-    <div v-for="item in obj_lists.table_names">
-      <span class="table-name" @click="reloadTableData(item)">{{ item }}</span>
+    <div v-for="item in obj_lists.table_names" class="table-name" @click="reloadTableData(item)">
+      <span>{{ item }}</span>
     </div>
   </div>
 </template>
@@ -25,6 +25,12 @@ emitter.on('meta_objects_refreshed', (newCurrent) => {
   obj_lists.view_names = data.view_names;
 });
 
+emitter.on('remove_history_success', () => {
+  obj_lists.table_names = [];
+  obj_lists.view_names = [];
+  pageCache.current = {} as CurrentDbAndTable;
+});
+
 const reloadTableData = (table_name: string) => {
   pageCache.current.table = table_name;
   emitter.emit('fetch_table_data_evt', pageCache.current);
@@ -38,8 +44,13 @@ const reloadTableData = (table_name: string) => {
   overflow-y: scroll;
 }
 
+.table-name {
+  width: 100%;
+}
+
 .table-name:hover {
   background-color: lightskyblue;
   border-radius: 4px;
+  cursor: pointer;
 }
 </style>

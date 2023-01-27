@@ -78,6 +78,11 @@ emitter.on('fetch_table_data_evt', (current) => {
   fetchTableData(current as CurrentDbAndTable);
 });
 
+emitter.on('remove_history_success', () => {
+  tableDataState.cols = [];
+  tableDataState.rows = [];
+  pageCache.current = {} as CurrentDbAndTable;
+});
 
 const changeLimit = (limit: number) => {
   currentLimit.value = limit;
@@ -85,11 +90,13 @@ const changeLimit = (limit: number) => {
 }
 
 const fetchTableData = (currentMeta: CurrentDbAndTable) => {
-  backApi("fetch_table_data", {
-    dbPath: currentMeta.db,
-    tableName: currentMeta.table,
-    limit: currentLimit.value
-  }, (resp) => {
+  let params: { [key: string]: string | undefined | number } = {
+    'dbPath': currentMeta.db,
+    'tableName': currentMeta.table,
+    'limit': currentLimit.value,
+    'key': currentMeta.key
+  };
+  backApi("fetch_table_data", params, (resp) => {
     let r: ApiResp<TableData> = JSON.parse(resp as string);
     if (r.success) {
       let nd = r.data as TableData;
