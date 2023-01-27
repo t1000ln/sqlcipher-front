@@ -9,9 +9,7 @@ declare module '@vue/runtime-core' {
   export interface GlobalComponents {
     CustomSQL: typeof import('./src/components/CustomSQL.vue')['default']
     ElButton: typeof import('element-plus/es')['ElButton']
-    ElDivider: typeof import('element-plus/es')['ElDivider']
     ElIcon: typeof import('element-plus/es')['ElIcon']
-    ElInput: typeof import('element-plus/es')['ElInput']
     ElTable: typeof import('element-plus/es')['ElTable']
     ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
     ElTabPane: typeof import('element-plus/es')['ElTabPane']
