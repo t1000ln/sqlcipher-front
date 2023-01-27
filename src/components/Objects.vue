@@ -27,7 +27,7 @@ emitter.on('meta_objects_refreshed', (newCurrent) => {
 
 const reloadTableData = (table_name: string) => {
   pageCache.current.table = table_name;
-  emitter.emit('fetch_table_data', pageCache.current);
+  emitter.emit('fetch_table_data_evt', pageCache.current);
 }
 
 </script>

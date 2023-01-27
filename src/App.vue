@@ -67,6 +67,8 @@ const mouseDown = (e: MouseEvent) => {
     outerContainer.value.onmouseup = null;
   }
 }
+
+
 </script>
 
 <style scoped>

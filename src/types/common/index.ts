@@ -77,9 +77,13 @@ export declare type EditApiParams = {
     dbPath: string,
     tableName?: string,
     key?: string,
-    delRows?: number[],
-    newRows?: object[],
-    editRows?: object,
+    delRows?: string[],
+    newRows?: RowType[],
+    editRows?: RowType,
+}
+
+export declare type RowType = {
+    [k: string]: any
 }
 
 

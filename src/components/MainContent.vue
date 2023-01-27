@@ -16,37 +16,16 @@
 
 <script lang="ts" name="MainContent" setup>
 
-import {ApiResp, backApi, CurrentDbAndTable, emitter, TableData} from "../types/common";
-import {ElMessage} from "element-plus";
+import {emitter} from "../types/common";
 import {ref} from "vue";
 import TableContent from "./TableContent.vue";
 import CustomSQL from "./CustomSQL.vue";
 
 const activeTabName = ref('custom')
 
-const defaultLimit = 100;
-
-const currentLimit = ref(defaultLimit);
-
-emitter.on('fetch_table_data', (current) => {
-  fetchTableData(current as CurrentDbAndTable);
+emitter.on('fetch_table_data_evt', (current) => {
+  activeTabName.value = 'explore';
 });
-
-const fetchTableData = (currentMeta: CurrentDbAndTable) => {
-  backApi("fetch_table_data", {
-    dbPath: currentMeta.db,
-    tableName: currentMeta.table,
-    limit: currentLimit.value
-  }, (resp) => {
-    let r: ApiResp<TableData> = JSON.parse(resp as string);
-    if (r.success) {
-      emitter.emit('refresh_table_data', r.data);
-      activeTabName.value = 'explore';
-    } else {
-      ElMessage.error(r.message);
-    }
-  });
-}
 </script>
 
 <style scoped>

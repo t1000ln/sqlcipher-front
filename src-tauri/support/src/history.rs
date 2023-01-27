@@ -1,6 +1,7 @@
 //! 该模块为一些带有UI界面的应用程序，提供加载文件历史记录的接口方法。
 //! 例如经常使用的"文件菜单->最近"这个菜单菜单项就可以使用该模块提供的接口方法。
 
+use std::error::Error;
 use std::fs;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -83,7 +84,7 @@ pub fn get_open_history(mut data_path: PathBuf) -> Option<Value> {
 ///     assert!(false, "新增失败 {}", e);
 /// }
 /// ```
-pub fn add_open_history(mut data_path: PathBuf, name: String, path: String, key: Option<String>) -> std::io::Result<()> {
+pub fn add_open_history(mut data_path: PathBuf, name: String, path: String, key: Option<String>) -> Result<(), Box<dyn Error>> {
     data_path.push("history.toml");
     let mut file = File::options().write(true).read(true).create(true).append(false).open(data_path)?;
     let mut content = String::new();
@@ -128,7 +129,7 @@ pub fn add_open_history(mut data_path: PathBuf, name: String, path: String, key:
         }
         Err(e) => {
             error!("add open history error: {:?}", e);
-            Err(e.into())
+            Err(Box::new(e))
         }
     }
 }
@@ -178,7 +179,7 @@ pub fn empty_open_history(mut data_path: PathBuf) -> std::io::Result<()> {
 ///     assert!(false, "移除历史记录失败 {}", e);
 /// }
 /// ```
-pub fn remove_open_history(mut data_path: PathBuf, index: usize) -> std::io::Result<()> {
+pub fn remove_open_history(mut data_path: PathBuf, index: usize) -> Result<(), Box<dyn Error>> {
     data_path.push("history.toml");
     let mut file = File::options().write(true).read(true).create(true).append(false).open(data_path)?;
     let mut content = String::new();
@@ -209,7 +210,7 @@ pub fn remove_open_history(mut data_path: PathBuf, index: usize) -> std::io::Res
         }
         Err(e) => {
             error!("add open history error: {:?}", e);
-            Err(e.into())
+            Err(Box::new(e))
         }
     }
 }

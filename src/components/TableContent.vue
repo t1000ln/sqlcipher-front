@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="action-bar">
-      <el-tooltip :show-after="1000" content="删除选中的行 (Delete)" placement="top">
+      <el-tooltip :show-after="1000" content="删除选中的行 (Ctrl+Delete)" placement="top">
         <el-icon class="icons" @click="removeCheckedRows">
           <Delete/>
         </el-icon>
@@ -26,16 +26,23 @@
         </el-icon>
       </el-tooltip>
 
+      <el-tooltip :show-after="1000" content="最多100条数据" placement="top">
+        <el-button @click="changeLimit(100)">0..100</el-button>
+      </el-tooltip>
+
+      <el-tooltip :show-after="1000" content="最多10w条数据" placement="top">
+        <el-button @click="changeLimit(100000)">0..100000</el-button>
+      </el-tooltip>
+
     </div>
 
     <vxe-table ref="contentTable" :column-config="{resizable: true}" :data="tableDataState.rows"
                :edit-config="{trigger: 'click', mode: 'cell', showStatus: true}"
                :row-config="{isHover: true, height: 30}"
                align="center" border height="300" keep-source max-height="600"
-               show-overflow
-               stripe @edit-closed="editClosedEvent">
-      <vxe-column type="checkbox" width="60"></vxe-column>
-      <vxe-column title="序号" type="seq" width="60"></vxe-column>
+               show-overflow stripe @edit-closed="editClosedEvent">
+      <vxe-column type="checkbox" width="50"></vxe-column>
+      <!--      <vxe-column title="序号" type="seq" width="60"></vxe-column>-->
       <vxe-column v-for="(item, index) in tableDataState.cols" :key="index"
                   :edit-render="{autofocus: '.vxe-input--inner'}" :field="item"
                   :title="item">
@@ -51,38 +58,58 @@
 
 <script lang="ts" name="TableContent" setup>
 
-import emitter, {ApiResp, backApi, CurrentDbAndTable, EditApiParams, TableData} from "../types/common";
-import {reactive, ref} from "vue";
+import emitter, {ApiResp, backApi, CurrentDbAndTable, EditApiParams, RowType, TableData} from "../types/common";
+import {onMounted, reactive, ref} from "vue";
 import {VxeTableEvents, VxeTableInstance} from "vxe-table";
 import {ElMessage, ElMessageBox} from "element-plus";
 import * as _ from 'lodash'
 
+const currentLimit = ref(100);
 const contentTable = ref<VxeTableInstance>();
 const tableDataState = reactive({
   cols: [] as string[],
   rows: [] as object[]
 });
 
+
 const pageCache = reactive({current: {} as CurrentDbAndTable});
-emitter.on('fetch_table_data', (current) => {
+emitter.on('fetch_table_data_evt', (current) => {
   pageCache.current = current as CurrentDbAndTable;
+  fetchTableData(current as CurrentDbAndTable);
 });
 
-emitter.on('refresh_table_data', (newData) => {
-  let nd = newData as TableData;
-  if (nd.cols !== undefined) {
-    tableDataState.cols = nd.cols;
-  }
-  if (nd.rows !== undefined) {
-    tableDataState.rows = nd.rows;
-  }
-})
+
+const changeLimit = (limit: number) => {
+  currentLimit.value = limit;
+  fetchTableData(pageCache.current);
+}
+
+const fetchTableData = (currentMeta: CurrentDbAndTable) => {
+  backApi("fetch_table_data", {
+    dbPath: currentMeta.db,
+    tableName: currentMeta.table,
+    limit: currentLimit.value
+  }, (resp) => {
+    let r: ApiResp<TableData> = JSON.parse(resp as string);
+    if (r.success) {
+      let nd = r.data as TableData;
+      if (nd.cols !== undefined) {
+        tableDataState.cols = nd.cols;
+      }
+      if (nd.rows !== undefined) {
+        tableDataState.rows = nd.rows;
+      }
+    } else {
+      ElMessage.error(r.message);
+    }
+  });
+}
 
 /**
  * 缓存修改过的行和字段。
  * 其key为目标行的_X_ROW_KEY值，其value为目标行所修改的字段新值。
  */
-const editCache = new Map<string, object>();
+const editCache = new Map<string, RowType>();
 
 /**
  * 实时跟踪表格字段修改情况，并更新editCache。
@@ -95,10 +122,10 @@ const editClosedEvent: VxeTableEvents.EditClosed = ({row, column}) => {
   const cellValue = row[field]
   // 判断单元格值是否被修改
   if ($table) {
-    let editRow: object | undefined = editCache.get(row._X_ROW_KEY);
+    let editRow: RowType | undefined = editCache.get(row._X_ROW_KEY);
     if ($table.isUpdateByRow(row, field)) {
       // 目标字段被修改了
-      if (editRow !== undefined) {
+      if (editRow) {
         // 在目标行缓存中新增修改的字段
         editRow[field] = cellValue;
       } else {
@@ -146,63 +173,70 @@ const insertNewRow = async () => {
 /**
  * 提交更删改数据。
  */
-const commitActions = () => {
-  let $table = contentTable.value;
-  if ($table) {
-    let apiParams: EditApiParams = {
-      dbPath: pageCache.current.db,
-      tableName: pageCache.current.table,
-    }
-    if (pageCache.current.key) {
-      apiParams.key = pageCache.current.key;
-    }
-
-    /*
-    加工待删除的数据rowid数组。
-     */
-    let tobeRemoved = $table.getRemoveRecords();
-    if (tobeRemoved.length > 0) {
-      apiParams.delRows = tobeRemoved.map((r) => {
-        return r.rowid
-      });
-    }
-
-    /*
-    加工待新增的数据行数组。
-     */
-    let tobeAdded = $table.getInsertRecords();
-    if (tobeAdded.length > 0) {
-      apiParams.newRows = tobeAdded.map((r) => {
-        let row = _.clone(r);
-        delete row._X_ROW_KEY; // 去除vxe-table组件附加的属性。
-        return row
-      });
-    }
-
-    /*
-    加工待更新的数据行map，
-    其key为rowid，值为被修改的字段集合。
-     */
-    let tobeUpdated = $table.getUpdateRecords();
-    if (tobeUpdated.length > 0) {
-      apiParams.editRows = {};
-      for (let i = 0; i < tobeUpdated.length; i++) {
-        let r = tobeUpdated[i];
-        let editRow = _.clone(editCache.get(r._X_ROW_KEY) as object);
-        let rowid = r.rowid;
-        apiParams.editRows[rowid] = editRow;
+const commitActions = async () => {
+  let ld = _;
+  await ElMessageBox.confirm('确认提交改动吗？', '提醒').then((_) => {
+    let $table = contentTable.value;
+    if ($table) {
+      let apiParams: EditApiParams = {
+        dbPath: pageCache.current.db,
+        tableName: pageCache.current.table,
       }
-    }
-
-    backApi("update_table_data", apiParams, (resp) => {
-      let r: ApiResp = JSON.parse(resp as string);
-      if (r.success) {
-        ElMessage.success('提交成功')
-      } else {
-        ElMessage.error(r.message);
+      if (pageCache.current.key) {
+        apiParams.key = pageCache.current.key;
       }
-    })
-  }
+
+      /*
+      加工待删除的数据rowid数组。
+       */
+      let tobeRemoved = $table.getRemoveRecords();
+      if (tobeRemoved.length > 0) {
+        apiParams.delRows = tobeRemoved.map((r) => {
+          return r.rowid.toString();
+        });
+      }
+
+      /*
+      加工待新增的数据行数组。
+       */
+      let tobeAdded = $table.getInsertRecords();
+      if (tobeAdded.length > 0) {
+        apiParams.newRows = tobeAdded.map((r) => {
+          let row = ld.clone(r);
+          delete row._X_ROW_KEY; // 去除vxe-table组件附加的属性。
+          return row
+        });
+      }
+
+      /*
+      加工待更新的数据行map，
+      其key为rowid，值为被修改的字段集合。
+       */
+      let tobeUpdated = $table.getUpdateRecords();
+      if (tobeUpdated.length > 0) {
+        apiParams.editRows = {} as RowType;
+        for (let i = 0; i < tobeUpdated.length; i++) {
+          let r = tobeUpdated[i];
+          let editRow = ld.clone(editCache.get(r._X_ROW_KEY) as object);
+          let rowid: string = r.rowid;
+          apiParams.editRows[rowid] = editRow;
+        }
+      }
+
+      backApi("update_table_data", apiParams, (resp) => {
+        let r: ApiResp = JSON.parse(resp as string);
+        if (r.success) {
+          ElMessage.success('提交成功');
+          fetchTableData(pageCache.current);
+        } else {
+          ElMessage.error(r.message);
+        }
+      })
+    }
+  }).catch((cancel) => {
+  })
+
+
 }
 
 /**
@@ -211,17 +245,34 @@ const commitActions = () => {
 const revertEdit = async () => {
   const $table = contentTable.value;
   if ($table) {
-    await ElMessageBox.confirm('确认撤回尚未提交的改动吗？', '提醒').then((_) => {
+    await ElMessageBox.confirm('撤回尚未提交的改动吗？', '提醒').then((_) => {
       $table.revertData();
     }).catch((cancel) => {
     })
   }
 }
+
+const globalKeyAction = (evt: Event) => {
+  if (evt instanceof KeyboardEvent) {
+    let ke = evt as KeyboardEvent;
+    if (ke.ctrlKey && ke.key == 'Delete') {
+      removeCheckedRows();
+    } else if (ke.altKey && ke.key == 'Insert') {
+      insertNewRow();
+    } else if (ke.ctrlKey && ke.key == 'Enter') {
+      commitActions();
+    }
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keyup', globalKeyAction);
+})
 </script>
 
 <style scoped>
 .action-bar {
-  margin-bottom: .2em;
+  /*margin-bottom: .2em;*/
 }
 
 .icons {

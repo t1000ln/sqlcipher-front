@@ -1,14 +1,12 @@
 //! 请描述文件用途。
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::process::exit;
 
 use api_resp::{ApiResp, TransformResult};
 use log::error;
 use serde_json::json;
 
 use support::history::{add_open_history, get_open_history};
-use support::load_db::{exec_sql, fetch_rows, load_tables};
+use support::load_db::{edit_data, exec_sql, fetch_rows, load_tables};
 
 use crate::get_config_dir;
 
@@ -67,10 +65,9 @@ pub async fn exec_custom_sql(db_path: String, sql: String, key: Option<String>) 
 }
 
 #[tauri::command]
-pub async fn update_table_data(db_path: String, table_name: String, key: Option<String>, del_rows: Option<Vec<u64>>, new_rows: Option<serde_json::Value>, edit_rows: Option<serde_json::Value>) -> String {
-    println!("待删除的数据：{:?}", del_rows);
-    println!("待添加的数据：{:?}", new_rows);
-    println!("待更新的数据：{:?}", edit_rows);
-    exit(0);
-    ApiResp::suc().to_json()
+pub async fn update_table_data(db_path: String, table_name: String, key: Option<String>, del_rows: Option<Vec<String>>, new_rows: Option<serde_json::Value>, edit_rows: Option<serde_json::Value>) -> String {
+    // println!("待删除的数据：{:?}", del_rows);
+    // println!("待添加的数据：{:?}", new_rows);
+    // println!("待更新的数据：{:?}", edit_rows);
+    edit_data(db_path, table_name, key, new_rows, edit_rows, del_rows).await.to_json_str("更新数据时出错")
 }
