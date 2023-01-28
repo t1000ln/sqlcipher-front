@@ -17,7 +17,7 @@
 <script lang="ts" name="MainContent" setup>
 
 import {emitter} from "../types/common";
-import {ref} from "vue";
+import {onMounted, ref} from "vue";
 import TableContent from "./TableContent.vue";
 import CustomSQL from "./CustomSQL.vue";
 
@@ -26,6 +26,24 @@ const activeTabName = ref('custom')
 emitter.on('fetch_table_data_evt', (current) => {
   activeTabName.value = 'explore';
 });
+
+
+const globalKeyAction = (evt: Event) => {
+  if (activeTabName.value == 'explore') {
+    let ke = evt as KeyboardEvent;
+    if (ke.ctrlKey && ke.key == 'Delete') {
+      emitter.emit('keyboard-action', 'ctrl-delete');
+    } else if (ke.altKey && ke.key == 'Insert') {
+      emitter.emit('keyboard-action', 'alt-insert');
+    } else if (ke.ctrlKey && ke.key == 'Enter') {
+      emitter.emit('keyboard-action', 'ctrl-enter');
+    }
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keyup', globalKeyAction);
+})
 </script>
 
 <style scoped>

@@ -6,7 +6,7 @@ use log::error;
 use serde_json::json;
 
 use support::history::{add_open_history, get_open_history, remove_open_history};
-use support::load_db::{edit_data, exec_sql, fetch_rows, load_tables};
+use support::load_db::{edit_data, exec_sql, fetch_rows, load_tables, remove_db_connection};
 
 use crate::get_config_dir;
 
@@ -23,30 +23,36 @@ pub async fn load_history(path: Option<String>) -> String {
 #[tauri::command]
 pub async fn add_history(path: String, cache_file: Option<String>, key: Option<String>) -> String {
     let new_path = PathBuf::from(&path);
-    if new_path.exists() && new_path.is_file() {
-        let name = new_path.file_name().unwrap().to_str().unwrap().to_string();
-        let data_path = if cache_file.is_none() { get_config_dir() } else { PathBuf::from(cache_file.unwrap()) };
-        let add_result = add_open_history(data_path, name, path, key);
-        if let Err(e) = add_result {
-            error!("缓存时出错 {:?}", e);
-            ApiResp::error(-1, e.to_string()).to_json()
-        } else {
-            ApiResp::suc().to_json()
-        }
+    let name = new_path.file_name().unwrap().to_str().unwrap().to_string();
+    let data_path = if cache_file.is_none() { get_config_dir() } else { PathBuf::from(cache_file.unwrap()) };
+    let add_result = add_open_history(data_path, name, path, key);
+    if let Err(e) = add_result {
+        error!("缓存时出错 {:?}", e);
+        ApiResp::error(-1, e.to_string()).to_json()
     } else {
-        ApiResp::error(-1, "目标文件不存在".to_string()).to_json()
+        ApiResp::suc().to_json()
     }
 }
 
 #[tauri::command]
 pub async fn remove_history_entry(index: usize, cache_file: Option<String>) -> String {
     let data_path = if cache_file.is_none() { get_config_dir() } else { PathBuf::from(cache_file.unwrap()) };
-    let remove_result = remove_open_history(data_path, index);
-    if let Err(e) = remove_result {
-        error!("移除缓存时出错 {:?}", e);
-        ApiResp::error(-1, e.to_string()).to_json()
-    } else {
-        ApiResp::suc().to_json()
+    let remove_file_cache_result = remove_open_history(data_path, index);
+    match remove_file_cache_result {
+        Ok(op) => {
+            if let Some(path) = op {
+                let remove_db_pool_result = remove_db_connection(&path);
+                if let Err(e) = remove_db_pool_result {
+                    error!("移除数据库连接池时出错 {:?}", e);
+                    return ApiResp::error(-1, e.to_string()).to_json();
+                }
+            }
+            ApiResp::suc().to_json()
+        }
+        Err(e) => {
+            error!("移除缓存时出错 {:?}", e);
+            ApiResp::error(-1, e.to_string()).to_json()
+        }
     }
 }
 
@@ -77,8 +83,5 @@ pub async fn exec_custom_sql(db_path: String, sql: String, key: Option<String>) 
 
 #[tauri::command]
 pub async fn update_table_data(db_path: String, table_name: String, key: Option<String>, del_rows: Option<Vec<String>>, new_rows: Option<serde_json::Value>, edit_rows: Option<serde_json::Value>) -> String {
-    // println!("待删除的数据：{:?}", del_rows);
-    // println!("待添加的数据：{:?}", new_rows);
-    // println!("待更新的数据：{:?}", edit_rows);
     edit_data(db_path, table_name, key, new_rows, edit_rows, del_rows).await.to_json_str("更新数据时出错")
 }

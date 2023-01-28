@@ -14,9 +14,6 @@
       </el-tooltip>
 
       <el-tooltip :show-after="1000" content="提交修改 (Ctrl+Enter)" placement="top">
-        <!--        <el-icon class="icons" @click="commitEdit">-->
-        <!--          <Expand></Expand>-->
-        <!--        </el-icon>-->
         <i class="vxe-icon-download icons" @click="commitActions"></i>
       </el-tooltip>
 
@@ -37,17 +34,18 @@
     </div>
 
     <vxe-table ref="contentTable" :column-config="{resizable: true}" :data="tableDataState.rows"
-               :edit-config="{trigger: 'click', mode: 'cell', showStatus: true}"
+               :edit-config="editConfig.cfg"
+               :keyboard-config="{isEsc: true, isTab: true, isEnter: true, isArrow: true}"
                :row-config="{isHover: true, height: 30}"
                align="center" border height="300" keep-source max-height="600"
                show-overflow stripe @edit-closed="editClosedEvent">
-      <vxe-column type="checkbox" width="50"></vxe-column>
-      <!--      <vxe-column title="序号" type="seq" width="60"></vxe-column>-->
+      <vxe-column v-if="!pageCache.current.isView" type="checkbox" width="50"></vxe-column>
+      <vxe-column v-if="pageCache.current.isView" title="序号" type="seq" width="60"></vxe-column>
       <vxe-column v-for="(item, index) in tableDataState.cols" :key="index"
-                  :edit-render="{autofocus: '.vxe-input--inner'}" :field="item"
-                  :title="item">
-        <template #edit="{ row }">
-          <vxe-input v-model="row[item]" type="text"></vxe-input>
+                  :edit-render="editConfig.render" :field="item.name"
+                  :title="item.name">
+        <template v-if="!pageCache.current.isView" #edit="{ row }">
+          <vxe-input v-model="row[item.name]" type="text"></vxe-input>
         </template>
       </vxe-column>
     </vxe-table>
@@ -58,8 +56,16 @@
 
 <script lang="ts" name="TableContent" setup>
 
-import emitter, {ApiResp, backApi, CurrentDbAndTable, EditApiParams, RowType, TableData} from "../types/common";
-import {onMounted, reactive, ref} from "vue";
+import emitter, {
+  ApiResp,
+  backApi,
+  ColumnMeta,
+  CurrentDbAndTable,
+  EditApiParams,
+  RowType,
+  TableData
+} from "../types/common";
+import {reactive, ref} from "vue";
 import {VxeTableEvents, VxeTableInstance} from "vxe-table";
 import {ElMessage, ElMessageBox} from "element-plus";
 import * as _ from 'lodash'
@@ -67,14 +73,25 @@ import * as _ from 'lodash'
 const currentLimit = ref(100);
 const contentTable = ref<VxeTableInstance>();
 const tableDataState = reactive({
-  cols: [] as string[],
+  cols: [] as ColumnMeta[],
   rows: [] as object[]
 });
 
+const editConfig = reactive({
+  cfg: {trigger: 'click', mode: 'cell', showStatus: true},
+  render: {autofocus: '.vxe-input--inner'}
+});
 
 const pageCache = reactive({current: {} as CurrentDbAndTable});
 emitter.on('fetch_table_data_evt', (current) => {
   pageCache.current = current as CurrentDbAndTable;
+  if (pageCache.current.isView) {
+    editConfig.cfg = {};
+    editConfig.render = {};
+  } else {
+    editConfig.cfg = {trigger: 'click', mode: 'cell', showStatus: true};
+    editConfig.render = {autofocus: '.vxe-input--inner'};
+  }
   fetchTableData(current as CurrentDbAndTable);
 });
 
@@ -182,6 +199,10 @@ const insertNewRow = async () => {
  */
 const commitActions = async () => {
   let ld = _;
+  if (!pageCache.current.table) {
+    return;
+  }
+
   await ElMessageBox.confirm('确认提交改动吗？', '提醒').then((_) => {
     let $table = contentTable.value;
     if ($table) {
@@ -259,21 +280,15 @@ const revertEdit = async () => {
   }
 }
 
-const globalKeyAction = (evt: Event) => {
-  if (evt instanceof KeyboardEvent) {
-    let ke = evt as KeyboardEvent;
-    if (ke.ctrlKey && ke.key == 'Delete') {
-      removeCheckedRows();
-    } else if (ke.altKey && ke.key == 'Insert') {
-      insertNewRow();
-    } else if (ke.ctrlKey && ke.key == 'Enter') {
-      commitActions();
-    }
+emitter.on('keyboard-action', (keys) => {
+  let pressedKeys = keys as string;
+  if (pressedKeys == 'ctrl-delete') {
+    removeCheckedRows();
+  } else if (pressedKeys == 'alt-insert') {
+    insertNewRow();
+  } else if (pressedKeys == 'ctrl-enter') {
+    commitActions();
   }
-}
-
-onMounted(() => {
-  window.addEventListener('keyup', globalKeyAction);
 })
 </script>
 

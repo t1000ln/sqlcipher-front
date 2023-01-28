@@ -48,14 +48,20 @@ export declare type CurrentDbAndTable = {
      */
     key?: string;
 
+    isView?: boolean,
+
     data?: any
 }
 
 export declare type TableData = {
-    cols?: string[],
+    cols?: ColumnMeta[],
     rows?: object[]
 }
 
+export declare type ColumnMeta = {
+    name: string,
+    type: string,
+}
 
 export declare type ExecParam = {
     dbPath: string,

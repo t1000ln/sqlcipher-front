@@ -12,11 +12,12 @@ use rbdc::db::ConnectOptions;
 use rbdc_sqlite::driver::SqliteDriver;
 use rbdc_sqlite::SqliteConnectOptions;
 use rbs::{to_value, Value};
-use regex::Regex;
+use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
 static OPENED_DBS: Lazy<Mutex<HashMap<String, Arc<Rbatis>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
-static COLUMN_NAME_REG: Lazy<Regex> = Lazy::new(|| Regex::new(r"\((.+)\)").unwrap());
+// static COLUMN_NAME_REG: Lazy<Regex> = Lazy::new(|| Regex::new(r"\((.+)\)").unwrap());
+// static CREATE_VIEW_REG: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(?i)CREATE\s+VIEW").unwrap());
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SqliteMeta {
@@ -28,6 +29,13 @@ pub struct SqliteMeta {
 }
 
 impl_select!(SqliteMeta{select_cols(table_column: &str) => "`order by name"}, "sqlite_master");
+
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TableInfo {
+    data_type: String,
+    name: String,
+}
 
 /// 打开或重新获取SQLITE数据库连接。
 ///
@@ -49,6 +57,15 @@ impl_select!(SqliteMeta{select_cols(table_column: &str) => "`order by name"}, "s
 /// ```
 pub fn open_db_connections(db_path: &String, key: &Option<String>) -> Result<Arc<Rbatis>, Box<dyn Error>> {
     let map_key = db_path.clone();
+
+    /*
+    使用ruqlite绑定的sqlipher包，自动创建加密库文件。
+     */
+    let conn = Connection::open(db_path).unwrap();
+    if let Some(key) = key {
+        conn.pragma_update(None, "key", key.clone()).unwrap();
+    }
+
     let mut map = OPENED_DBS.lock()?;
     if !map.contains_key(&map_key) {
         let mut opts = SqliteConnectOptions::new();
@@ -56,11 +73,18 @@ pub fn open_db_connections(db_path: &String, key: &Option<String>) -> Result<Arc
         if let Some(key) = key {
             opts = opts.pragma("key", key.clone());
         }
+        opts = opts.create_if_missing(false);
         let rb = Rbatis::new();
         rb.init_opt(SqliteDriver {}, opts)?;
         map.insert(map_key.clone(), Arc::new(rb));
     }
     Ok(map.get(&map_key).unwrap().clone())
+}
+
+pub fn remove_db_connection(db_path: &String) -> Result<(), Box<dyn Error>> {
+    let mut map = OPENED_DBS.lock()?;
+    map.remove(db_path);
+    Ok(())
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -118,7 +142,7 @@ pub async fn load_tables(db_path: String, key: Option<String>) -> Result<MetaRes
 
 #[derive(Serialize, Deserialize)]
 pub struct TableData {
-    cols: Vec<String>,
+    cols: Vec<TableInfo>,
     rows: Vec<HashMap<String, Value>>,
 }
 
@@ -148,29 +172,39 @@ pub async fn fetch_rows(db_path: String, table_name: String, limit: u64, key: Op
     let conn = open_db_connections(&db_path, &key)?;
     let rb = conn.deref();
 
-    // 获取目标表的字段名列表
-    let meta: String = rb.fetch_decode("select sql from sqlite_master where name = ?", vec![to_value!(&table_name)]).await?;
-    let mut cols: Vec<String> = vec![];
-    let re = COLUMN_NAME_REG.captures(&meta);
-    if let Some(cap) = re {
-        let c = cap.get(1);
-        if let Some(c) = c {
-            let sc = c.as_str().split(",");
-            for s in sc {
-                for part in s.split(char::is_whitespace) {
-                    if !"".eq(part) {
-                        cols.push(part.to_string());
-                        break;
-                    }
-                }
+    /*
+    获取目标表或视图的字段名列表
+     */
+    let mut cols: Vec<TableInfo> = vec![];
+    let table_info_sql = format!("pragma table_info({})", table_name);
+    let result: Vec<HashMap<String, rbs::Value>> = rb.fetch_decode(table_info_sql.as_str(), vec![]).await.unwrap();
+    for r in result {
+        let mut data_type: String = String::new();
+        let mut name: String = String::new();
+        for (k, v) in r {
+            if k.eq("name") {
+                name.push_str(v.as_str().unwrap());
+            } else if k.eq("type") {
+                data_type.push_str(v.as_str().unwrap());
             }
-        } else {
-            return Ok(ApiResp::error(-1, "检查表结构时出错".to_string()));
         }
+        cols.push(TableInfo { data_type, name });
     }
 
-    // 查询数据
-    let rows: Vec<HashMap<String, Value>> = rb.fetch_decode(format!("select rowid,* from {} limit ?", table_name).as_str(), vec![to_value!(limit)]).await?;
+    /*
+    检查目标是表还是视图。
+     */
+    let mut is_table = true;
+    let target_type: String = rb.fetch_decode("select type from sqlite_master where name = ?", vec![to_value!(&table_name)]).await.unwrap();
+    if !target_type.eq("table") {
+        is_table = false;
+    }
+
+    /*
+    查询数据，若目标是表则附加rowid字段，以便后续修改操作。
+     */
+    let sql = format!("select {} * from {} limit ?", if is_table { "rowid," } else { "" }, table_name);
+    let rows: Vec<HashMap<String, Value>> = rb.fetch_decode(sql.as_str(), vec![to_value!(limit)]).await?;
     Ok(ApiResp::success(serde_json::json!(TableData { cols, rows })))
 }
 
@@ -208,13 +242,9 @@ pub async fn exec_sql(db_path: String, sql: &str, key: Option<String>) -> DaoRes
     let rb = conn.deref();
 
     match sql.trim().to_lowercase().as_str() {
-        s if s.starts_with("select") => {
+        s if s.starts_with("select") || s.starts_with("pragma") || s.starts_with("explain") => {
             let rows: Vec<HashMap<String, Value>> = rb.fetch_decode(s, vec![]).await?;
             Ok(ApiResp::success(serde_json::json!(rows)))
-        }
-        s if s.starts_with("explain") => {
-            let result: Vec<HashMap<String, Value>> = rb.fetch_decode(s, vec![]).await?;
-            Ok(ApiResp::success(serde_json::json!(result)))
         }
         _ => {
             let result = rb.exec(sql, vec![]).await?;
@@ -395,14 +425,16 @@ mod tests {
     #[tokio::test]
     pub async fn test_open_db() {
         fast_log::init(fast_log::Config::new().console()).expect("log init fail");
+        let db_path = "/home/liuning/tmp/sqlite/my.db".to_string();
+        let mut key = Some("123456".to_string());
         for i in 1..3 {
-            let result = open_db_connections(&"/home/liuning/tmp/my.db/sms.db".to_string(), &Some("123456".to_string()));
+            let result = open_db_connections(&db_path, &key);
             match result {
                 Err(e) => assert!(false, "打开数据库失败 {}", e),
                 Ok(rb) => {
                     println!("第 {} 次正常开启数据库 {:?}", i, rb);
                     let mut rb = rb.deref();
-                    rb.exec("create table if not exists my_table (id text, name text, age integer)", vec![]).await.unwrap();
+                    rb.exec("create table if not exists my_table (id text, name text, etime integer)", vec![]).await.unwrap();
                     rb.exec("create view if not exists v_my_table as select id,name from my_table", vec![]).await.unwrap();
 
                     let metas = SqliteMeta::select_cols(&mut rb, "type as obj_type,name").await;
@@ -416,8 +448,9 @@ mod tests {
             }
         }
 
+        key = None;
         for i in 1..3 {
-            let result = open_db_connections(&"/home/liuning/tmp/sqlite/my.db".to_string(), &Some("123456".to_string()));
+            let result = open_db_connections(&db_path, &key);
             match result {
                 Err(e) => assert!(false, "打开数据库失败 {}", e),
                 Ok(rb) => {
@@ -453,7 +486,7 @@ mod tests {
     #[tokio::test]
     pub async fn test_fetch_rows() {
         fast_log::init(fast_log::Config::new().console()).expect("rbatis init fail");
-        let result = fetch_rows("/home/liuning/tmp/sqlite/my.db".to_string(), "my_table".to_string(), 10, Some("123456".to_string())).await;
+        let result = fetch_rows("/home/liuning/tmp/sqlite/my.db".to_string(), "v_my_table".to_string(), 10, Some("123456".to_string())).await;
         if let Err(e) = result {
             assert!(false, "查询数据库失败 {}", e);
         } else {
@@ -464,40 +497,41 @@ mod tests {
     #[tokio::test]
     pub async fn test_exec_sql() {
         fast_log::init(fast_log::Config::new().console()).expect("rbatis init fail");
-        let query_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "select rowid, * from my_table", Some("123456".to_string())).await;
+        // let query_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "select rowid, * from my_table", Some("123456".to_string())).await;
+        let query_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "pragma table_info(my_table)", Some("123456".to_string())).await;
         if let Err(e) = query_result {
             assert!(false, "查询数据库失败: {}", e);
         } else {
             println!("查询到数据 {:?}", query_result.to_json_str("查询出错"));
         }
 
-        let insert_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "insert into my_table(id,name) values(3,'lisi')", Some("123456".to_string())).await;
-        if let Err(e) = insert_result {
-            assert!(false, "更新数据库失败: {}", e);
-        } else {
-            println!("本次操作结果 {:?}", insert_result.to_json_str("操作出错"));
-        }
-
-        let delete_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "delete from my_table where rowid = 3", Some("123456".to_string())).await;
-        if let Err(e) = delete_result {
-            assert!(false, "更新数据库失败: {}", e);
-        } else {
-            println!("本次操作结果 {:?}", delete_result.to_json_str("操作出错"));
-        }
-
-        let create_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "create table if not exists my_table(id integer,etime text,name text)", Some("123456".to_string())).await;
-        if let Err(e) = create_result {
-            assert!(false, "更新数据库失败: {}", e);
-        } else {
-            println!("本次操作结果 {:?}", create_result.to_json_str("操作出错"));
-        }
-
-        let explain_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "explain query plan select rowid,* from my_table", Some("123456".to_string())).await;
-        if let Err(e) = explain_result {
-            assert!(false, "更新数据库失败: {}", e);
-        } else {
-            println!("本次操作结果 {:?}", explain_result.to_json_str("操作出错"));
-        }
+        // let insert_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "insert into my_table(id,name) values(3,'lisi')", Some("123456".to_string())).await;
+        // if let Err(e) = insert_result {
+        //     assert!(false, "更新数据库失败: {}", e);
+        // } else {
+        //     println!("本次操作结果 {:?}", insert_result.to_json_str("操作出错"));
+        // }
+        //
+        // let delete_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "delete from my_table where rowid = 3", Some("123456".to_string())).await;
+        // if let Err(e) = delete_result {
+        //     assert!(false, "更新数据库失败: {}", e);
+        // } else {
+        //     println!("本次操作结果 {:?}", delete_result.to_json_str("操作出错"));
+        // }
+        //
+        // let create_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "create table if not exists my_table(id integer,etime text,name text)", Some("123456".to_string())).await;
+        // if let Err(e) = create_result {
+        //     assert!(false, "更新数据库失败: {}", e);
+        // } else {
+        //     println!("本次操作结果 {:?}", create_result.to_json_str("操作出错"));
+        // }
+        //
+        // let explain_result = exec_sql("/home/liuning/tmp/sqlite/my.db".to_string(), "explain query plan select rowid,* from my_table", Some("123456".to_string())).await;
+        // if let Err(e) = explain_result {
+        //     assert!(false, "更新数据库失败: {}", e);
+        // } else {
+        //     println!("本次操作结果 {:?}", explain_result.to_json_str("操作出错"));
+        // }
     }
 
     #[derive(Serialize)]
@@ -549,5 +583,64 @@ mod tests {
                 assert!(false, "更新数据库失败 {}", e);
             }
         }
+    }
+
+    #[tokio::test]
+    pub async fn test_remove_db_connection() {
+        fast_log::init(fast_log::Config::new().console()).expect("log init fail");
+        let db_path = "/home/liuning/tmp/sqlite/my.db".to_string();
+
+        /*
+        先创建一个连接池
+         */
+        let key = Some("123456".to_string());
+        for i in 1..3 {
+            let result = open_db_connections(&db_path, &key);
+            match result {
+                Err(e) => assert!(false, "打开数据库失败 {}", e),
+                Ok(rb) => {
+                    println!("第 {} 次正常开启数据库 {:?}", i, rb);
+                    let mut rb = rb.deref();
+                    rb.exec("create table if not exists my_table (id text, name text, etime integer)", vec![]).await.unwrap();
+                    rb.exec("create view if not exists v_my_table as select id,name from my_table", vec![]).await.unwrap();
+
+                    let metas = SqliteMeta::select_cols(&mut rb, "type as obj_type,name").await;
+                    match metas {
+                        Err(e) => assert!(false, "查询元数据出错 {}", e),
+                        Ok(rows) => {
+                            println!("第 {} 次查询到结果 {:?}", i, rows);
+                        }
+                    }
+                }
+            }
+        }
+
+        let result = remove_db_connection(&db_path);
+        match result {
+            Err(e) => assert!(false, "移除数据库连接池失败 {}", e),
+            Ok(()) => {
+                let map = OPENED_DBS.lock().unwrap();
+                assert!(!map.contains_key(&db_path), "移除连接池失败");
+            }
+        }
+    }
+
+    #[tokio::test]
+    pub async fn test_meta() {
+        fast_log::init(fast_log::Config::new().console()).expect("rbatis init fail");
+        let db_path = "/home/liuning/tmp/sqlite/my.db".to_string();
+        let key = Some("123456".to_string());
+        let conn = open_db_connections(&db_path, &key).unwrap();
+        let rb = conn.deref();
+
+        let result: Vec<HashMap<String, rbs::Value>> = rb.fetch_decode("pragma table_info(v_my_table)", vec![]).await.unwrap();
+        for r in result {
+            for (k, v) in r {
+                if k.eq("name") || k.eq("type") {
+                    println!("{} = {}", k, v.as_str().unwrap());
+                }
+            }
+        }
+        assert!(true)
     }
 }

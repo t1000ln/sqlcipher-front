@@ -1,6 +1,9 @@
 <template>
   <div class="objects-area">
-    <div v-for="item in obj_lists.table_names" class="table-name" @click="reloadTableData(item)">
+    <div v-for="item in obj_lists.table_names" class="table-name" @click="reloadTableData(item, false)">
+      <span>{{ item }}</span>
+    </div>
+    <div v-for="item in obj_lists.view_names" class="table-name" @click="reloadTableData(item, true)">
       <span>{{ item }}</span>
     </div>
   </div>
@@ -31,8 +34,9 @@ emitter.on('remove_history_success', () => {
   pageCache.current = {} as CurrentDbAndTable;
 });
 
-const reloadTableData = (table_name: string) => {
+const reloadTableData = (table_name: string, isView: boolean) => {
   pageCache.current.table = table_name;
+  pageCache.current.isView = isView;
   emitter.emit('fetch_table_data_evt', pageCache.current);
 }
 

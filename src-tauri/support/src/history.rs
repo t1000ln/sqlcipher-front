@@ -179,7 +179,7 @@ pub fn empty_open_history(mut data_path: PathBuf) -> std::io::Result<()> {
 ///     assert!(false, "移除历史记录失败 {}", e);
 /// }
 /// ```
-pub fn remove_open_history(mut data_path: PathBuf, index: usize) -> Result<(), Box<dyn Error>> {
+pub fn remove_open_history(mut data_path: PathBuf, index: usize) -> Result<Option<String>, Box<dyn Error>> {
     data_path.push("history.toml");
     let mut file = File::options().write(true).read(true).create(true).append(false).open(data_path)?;
     let mut content = String::new();
@@ -187,12 +187,17 @@ pub fn remove_open_history(mut data_path: PathBuf, index: usize) -> Result<(), B
     let his_list: Result<Table, TomlError> = toml::from_str(content.as_str());
     match his_list {
         Ok(mut his_list) => {
+            let mut removed_path: Option<String> = None;
             let list: Option<&mut Value> = his_list.get_mut("His");
             match list {
                 Some(list) => {
                     let array = list.as_array_mut().unwrap();
                     if index < array.len() {
-                        array.remove(index);
+                        let entry = array.remove(index);
+                        let entry_path: Option<&toml::Value> = entry.as_table().unwrap().get("path");
+                        if let Some(path) = entry_path {
+                            removed_path = Some(path.as_str().unwrap().to_string());
+                        }
                     }
 
                     // 清空文件内容，并收缩容量到0长度。
@@ -206,7 +211,7 @@ pub fn remove_open_history(mut data_path: PathBuf, index: usize) -> Result<(), B
                 None => {}
             }
 
-            Ok(())
+            Ok(removed_path)
         }
         Err(e) => {
             error!("add open history error: {:?}", e);
@@ -250,8 +255,11 @@ mod tests {
     fn test_remove_open_hisotry() {
         let data_path = PathBuf::from("/home/liuning/tmp");
         let result = remove_open_history(data_path, 1);
-        if let Err(e) = result {
-            assert!(false, "移除历史记录失败 {}", e);
+        match result {
+            Err(e) => { assert!(false, "移除历史记录失败 {}", e); }
+            Ok(ov) => {
+                println!("移除的条目内容为：{:?}", ov);
+            }
         }
     }
 }

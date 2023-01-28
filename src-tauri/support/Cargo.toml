@@ -19,6 +19,7 @@ rbatis = { version = "4.0" }
 rbdc = "0.1.22"
 rbdc-sqlite = { version = "0.1" }
 regex = "1.7"
+rusqlite = { version = "0.28.0", features = ["functions", "collation", "bundled-sqlcipher-vendored-openssl"] }
 
 
 [dev-dependencies]

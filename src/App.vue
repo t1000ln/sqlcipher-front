@@ -95,7 +95,7 @@ const mouseDown = (e: MouseEvent) => {
 
 .right-area {
   margin-left: 210px;
-  background-color: pink;
+  /*background-color: pink;*/
   height: 95vh;
 }
 
