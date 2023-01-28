@@ -2915,7 +2915,7 @@ dependencies = [
 
 [[package]]
 name = "sqlcipher-front"
-version = "0.0.0"
+version = "1.0.0"
 dependencies = [
  "api-resp",
  "fast_log",

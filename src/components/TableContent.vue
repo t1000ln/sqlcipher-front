@@ -66,7 +66,7 @@ import emitter, {
   TableData
 } from "../types/common";
 import {reactive, ref} from "vue";
-import {VxeTableEvents, VxeTableInstance} from "vxe-table";
+import {VxeTableEvents, VxeTableInstance, VxeTablePropTypes} from "vxe-table";
 import {ElMessage, ElMessageBox} from "element-plus";
 import * as _ from 'lodash'
 
@@ -78,7 +78,7 @@ const tableDataState = reactive({
 });
 
 const editConfig = reactive({
-  cfg: {trigger: 'click', mode: 'cell', showStatus: true},
+  cfg: {trigger: 'click', mode: 'cell', showStatus: true} as VxeTablePropTypes.EditConfig,
   render: {autofocus: '.vxe-input--inner'}
 });
 
@@ -86,8 +86,8 @@ const pageCache = reactive({current: {} as CurrentDbAndTable});
 emitter.on('fetch_table_data_evt', (current) => {
   pageCache.current = current as CurrentDbAndTable;
   if (pageCache.current.isView) {
-    editConfig.cfg = {};
-    editConfig.render = {};
+    editConfig.cfg = {trigger: 'manual', mode: 'row', showStatus: true};
+    editConfig.render = {autofocus: ''};
   } else {
     editConfig.cfg = {trigger: 'click', mode: 'cell', showStatus: true};
     editConfig.render = {autofocus: '.vxe-input--inner'};

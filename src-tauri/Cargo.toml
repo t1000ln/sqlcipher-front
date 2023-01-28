@@ -1,10 +1,10 @@
 [package]
 name = "sqlcipher-front"
-version = "0.0.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+version = "1.0.0"
+description = "sqlite数据库开发工具，支持ruqlite绑定的sqlcipher库。"
+authors = ["t1000ln"]
+license = "MIT"
+repository = "https://github.com/t1000ln/sqlcipher-front"
 edition = "2021"
 rust-version = "1.57"
 

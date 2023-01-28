@@ -1,15 +1,17 @@
 <template>
   <div class="his_area">
     <div v-for="(item, index) in cmp_data.his_data" :key="index">
-      <el-icon class="open-his-act" @click="refresh_db(item)">
-        <ZoomIn/>
-      </el-icon>
-      <span>{{ item.name }}</span>
-      <el-tooltip :content="item.path" :show-after="1000" placement="top">
-        <el-icon class="path-icon">
-          <Location></Location>
+      <div>
+        <el-icon class="open-his-act" @click="refresh_db(item)">
+          <ZoomIn/>
         </el-icon>
-      </el-tooltip>
+        <span>{{ item.name }}</span>
+        <el-tooltip :content="item.path" :show-after="1000" placement="top">
+          <el-icon class="path-icon">
+            <Location></Location>
+          </el-icon>
+        </el-tooltip>
+      </div>
       <span class="delete-icon">
         <el-icon @click="deleteEntry(item.path, index)">
           <Delete/>
@@ -80,11 +82,13 @@ onMounted(() => {
 .his_area {
   position: relative;
   /*border: 1px solid lightgray;*/
-
 }
 
 .his_area div {
-  padding: .5em;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .his_area div:hover {
