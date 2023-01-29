@@ -12,7 +12,8 @@
       </el-icon>
     </el-tooltip>
     <el-dialog v-model="showKeyDialog">
-      <el-input v-model="params.key" show-password type="password" @keyup.enter="confirmOpen"></el-input>
+      <el-input v-model="params.key" placeholder="建议设置一个密钥，请勿丢失" show-password type="password"
+                @keyup.enter="confirmOpen"></el-input>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="ignoreKey">不设置</el-button>
