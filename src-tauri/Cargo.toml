@@ -1,6 +1,6 @@
 [package]
 name = "sqlcipher-front"
-version = "1.0.0"
+version = "1.0.1"
 description = "sqlite数据库开发工具，支持ruqlite绑定的sqlcipher库。"
 authors = ["t1000ln"]
 license = "MIT"
