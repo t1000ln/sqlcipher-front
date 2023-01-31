@@ -7,6 +7,12 @@
             <ZoomIn/>
           </el-icon>
         </el-tooltip>
+        <el-icon v-if="item.key" class="security-icon">
+          <Key></Key>
+        </el-icon>
+        <el-icon v-else class="security-icon">
+          <View></View>
+        </el-icon>
         <span>{{ item.name }}</span>
         <el-tooltip :content="item.path" :show-after="500" placement="top">
           <el-icon class="path-icon">
@@ -46,7 +52,7 @@ const refresh_db = async (item: History) => {
   await backApi("open_db", params, (resp) => {
     let r: ApiResp<ObjectNames> = JSON.parse(resp as string);
     if (r.success) {
-      let current: CurrentDbAndTable = {db: item.path, data: r.data}
+      let current: CurrentDbAndTable = {db: item.path, data: r.data, key: item.key}
       emitter.emit('meta_objects_refreshed', current)
     } else {
       ElMessage.error(r.message);
@@ -121,7 +127,7 @@ onMounted(() => {
 }
 
 .open-his-act {
-  margin-right: 1em;
+  margin-right: .2em;
 }
 
 .open-his-act:hover {
@@ -132,5 +138,10 @@ onMounted(() => {
 
 .path-icon {
   margin-left: .5em;
+}
+
+.security-icon {
+  color: gray;
+  margin-right: .1em;
 }
 </style>

@@ -5,10 +5,9 @@ use api_resp::{ApiResp, TransformResult};
 use log::error;
 use serde_json::json;
 
-use crate::support::history::{add_open_history, get_open_history, remove_open_history};
-use crate::support::load_db::{edit_data, exec_sql, fetch_rows, load_tables, remove_db_connection};
-
 use crate::get_config_dir;
+use crate::support::history::{add_open_history, get_open_history, remove_open_history};
+use crate::support::load_db::{edit_data, exec_sql, fetch_rows, fetch_table_sql, load_tables, remove_db_connection};
 
 #[tauri::command]
 pub async fn load_history(path: Option<String>) -> String {
@@ -84,4 +83,9 @@ pub async fn exec_custom_sql(db_path: String, sql: String, key: Option<String>) 
 #[tauri::command]
 pub async fn update_table_data(db_path: String, table_name: String, key: Option<String>, del_rows: Option<Vec<String>>, new_rows: Option<serde_json::Value>, edit_rows: Option<serde_json::Value>) -> String {
     edit_data(db_path, table_name, key, new_rows, edit_rows, del_rows).await.to_json_str("更新数据时出错")
+}
+
+#[tauri::command]
+pub async fn get_table_sql(db_path: String, table_name: String, key: Option<String>) -> String {
+    fetch_table_sql(db_path, key, table_name).await.to_json_str("查询目标SQL语句时出错")
 }

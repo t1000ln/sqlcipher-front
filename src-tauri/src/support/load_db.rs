@@ -1,5 +1,4 @@
 //! 请描述文件用途。
-
 use std::collections::HashMap;
 use std::error::Error;
 use std::ops::Deref;
@@ -108,7 +107,7 @@ pub struct MetaResult {
 ///
 /// ```
 /// fast_log::init(fast_log::Config::new().console()).expect("rbatis init fail");
-/// let load_result = load_tables("/home/liuning/tmp/my.db/sms.db".to_string(), Some("123456".to_string())).await;
+/// let load_result = load_tables("/home/foo/tmp/sqlite/sms.db".to_string(), Some("123456".to_string())).await;
 /// match load_result {
 ///     Err(e) => assert!(false, "查询表名失败 {}", e),
 ///     Ok(metas) => {
@@ -121,16 +120,18 @@ pub async fn load_tables(db_path: String, key: Option<String>) -> Result<MetaRes
     let mut rb = rb.deref();
 
     let mut metas = SqliteMeta::select_cols(&mut rb, "type as obj_type,name").await?;
-    let talbe_opt = Some(String::from("table"));
+    let table_opt = Some(String::from("table"));
     let view_opt = Some(String::from("view"));
-    let table_names: Vec<String> = metas.iter_mut().filter(|m| talbe_opt.eq(&m.obj_type)).map(|m| {
-        return m.name.replace("".to_string()).unwrap();
-    }).collect();
-    let view_names: Vec<String> = metas.iter_mut().filter(|m| view_opt.eq(&m.obj_type)).map(|m| {
-        return m.name.replace("".to_string()).unwrap();
-    }).collect();
 
-    let mut result = MetaResult { db_path: db_path, table_names: None, view_names: None, key };
+    let mut names = |opt: Option<String>| -> Vec<String> {
+        metas.iter_mut().filter(|m| opt.eq(&m.obj_type)).map(|m| {
+            return m.name.replace("".to_string()).unwrap();
+        }).collect()
+    };
+    let table_names = names(table_opt);
+    let view_names = names(view_opt);
+
+    let mut result = MetaResult { db_path, table_names: None, view_names: None, key };
     if !table_names.is_empty() {
         result.table_names = Some(table_names);
     }
@@ -139,6 +140,14 @@ pub async fn load_tables(db_path: String, key: Option<String>) -> Result<MetaRes
     }
     Ok(result)
 }
+
+pub async fn fetch_table_sql(db_path: String, key: Option<String>, table_name: String) -> DaoResult {
+    let _rb = open_db_connections(&db_path, &key)?;
+    let rb = _rb.deref();
+    let sql: String = rb.fetch_decode("select sql from sqlite_master where name = ?", vec![to_value!(table_name)]).await?;
+    Ok(ApiResp::success(serde_json::Value::String(sql)))
+}
+
 
 #[derive(Serialize, Deserialize)]
 pub struct TableData {
@@ -415,10 +424,9 @@ pub async fn edit_data(db_path: String, table_name: String, key: Option<String>,
 #[cfg(test)]
 mod tests {
     use api_resp::TransformResult;
-    use serde_json::json;
-
     use names::{Generator, Name};
     use rand::prelude::*;
+    use serde_json::json;
 
     use super::*;
 
@@ -474,7 +482,7 @@ mod tests {
     #[tokio::test]
     pub async fn test_load_tables() {
         fast_log::init(fast_log::Config::new().console()).expect("rbatis init fail");
-        let load_result = load_tables("/home/liuning/tmp/my.db/sms.db".to_string(), Some("123456".to_string())).await;
+        let load_result = load_tables("/home/liuning/tmp/sqlite/my.db".to_string(), Some("123456".to_string())).await;
         match load_result {
             Err(e) => assert!(false, "查询表名失败 {}", e),
             Ok(metas) => {
@@ -642,5 +650,14 @@ mod tests {
             }
         }
         assert!(true)
+    }
+
+    #[tokio::test]
+    pub async fn test_fetch_table_sql() {
+        fast_log::init(fast_log::Config::new().console()).expect("rbatis init fail");
+        let db_path = "/home/liuning/tmp/sqlite/my.db".to_string();
+        let key = Some("123456".to_string());
+        let ret = fetch_table_sql(db_path, key, "my_table".to_string()).await.unwrap();
+        println!("ret {:?}", ret);
     }
 }

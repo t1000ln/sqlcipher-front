@@ -21,3 +21,24 @@
     justify-content: center;
     text-align: center;
 }
+
+span.sql-hl-keyword {
+    /*font-weight: normal;*/
+    color: purple;
+}
+
+span.sql-hl-special {
+    color: darkgoldenrod;
+}
+
+span.sql-hl-bracket {
+    color: black;
+}
+
+span.sql-hl-string {
+    color: green;
+}
+
+span.sql-hl-number {
+    color: blue;
+}
