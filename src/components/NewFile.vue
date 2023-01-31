@@ -12,11 +12,11 @@
       </el-icon>
     </el-tooltip>
     <el-dialog v-model="showKeyDialog">
-      <el-input v-model="params.key" placeholder="建议设置一个密钥，请勿丢失" show-password type="password"
+      <el-input v-model="params.key" placeholder="请设置密钥，若无需密钥请忽略" show-password type="password"
                 @keyup.enter="confirmOpen"></el-input>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="ignoreKey">不设置</el-button>
+          <el-button @click="ignoreKey">忽略</el-button>
           <el-button type="primary" @click="confirmOpen">设置</el-button>
         </span>
       </template>
@@ -99,7 +99,6 @@ const create_new_file_dialog = async () => {
 .new-path-icon:hover {
   cursor: pointer;
   color: chocolate;
-  filter: drop-shadow(0 0 2em #747bff);
 }
 
 .dialog-footer:first-child {

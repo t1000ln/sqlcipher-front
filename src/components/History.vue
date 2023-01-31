@@ -31,7 +31,8 @@ import {onMounted, reactive} from "vue";
 import {History} from "../types/history";
 import {ApiResp, backApi, CurrentDbAndTable, emitter} from "../types/common";
 import {ObjectNames} from "../types/metas";
-import {ElMessage, ElMessageBox} from "element-plus";
+import {ElMessage} from "element-plus";
+import {confirm} from '@tauri-apps/api/dialog';
 
 const cmp_data = reactive({
   his_data: [] as History[]
@@ -65,16 +66,26 @@ const load_history = () => {
 }
 
 const deleteEntry = async (path: string, index: number) => {
-  await ElMessageBox.confirm('要取消<' + path + '>缓存吗？该操作不会删除数据库文件。', '提醒').then(() => {
-    backApi("remove_history_entry", {index: index}, (resp) => {
+  // await ElMessageBox.confirm('要取消<' + path + '>缓存吗？该操作不会删除数据库文件。', '提醒').then(() => {
+  //   backApi("remove_history_entry", {index: index}, (resp) => {
+  //     let r: ApiResp<null> = JSON.parse(resp as string);
+  //     if (r.success) {
+  //       load_history();
+  //       emitter.emit('remove_history_success');
+  //     }
+  //   });
+  // }).catch((err) => {
+  // })
+  let cfm = await confirm('要取消<' + path + '>缓存吗？该操作不会删除数据库文件。');
+  if (cfm) {
+    await backApi("remove_history_entry", {index: index}, (resp) => {
       let r: ApiResp<null> = JSON.parse(resp as string);
       if (r.success) {
         load_history();
         emitter.emit('remove_history_success');
       }
     });
-  }).catch((err) => {
-  })
+  }
 }
 onMounted(() => {
   load_history();

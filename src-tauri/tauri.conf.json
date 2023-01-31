@@ -32,14 +32,13 @@
       },
       "externalBin": [],
       "icon": [
-        "icons/32x32.png",
         "icons/128x128.png",
         "icons/128x128@2x.png",
         "icons/icon.icns",
         "icons/icon.ico"
       ],
       "identifier": "cn.jycloudxa.sqlcipher-front",
-      "longDescription": "",
+      "longDescription": "适用于sqlcipher加密库的查询工具",
       "macOS": {
         "entitlements": null,
         "exceptionDomain": "",
@@ -48,7 +47,7 @@
         "signingIdentity": null
       },
       "resources": [],
-      "shortDescription": "",
+      "shortDescription": "sqlcipher加密库查询工具",
       "targets": "all",
       "windows": {
         "certificateThumbprint": null,

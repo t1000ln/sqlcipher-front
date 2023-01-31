@@ -1,11 +1,9 @@
 <template>
   <div ref="outerContainer" class="layout">
     <div ref="leftArea" class="left-area">
-      <div class="his-block">
-        <NewFile></NewFile>
-        <hr class="vertical-splitter">
-        <History></History>
-      </div>
+      <NewFile></NewFile>
+      <hr class="vertical-splitter">
+      <History class="his-block"></History>
       <hr class="vertical-splitter">
       <Objects></Objects>
     </div>
@@ -89,7 +87,7 @@ const mouseDown = (e: MouseEvent) => {
 }
 
 .his-block {
-  height: 24%;
+  height: 20%;
   overflow-y: scroll;
 }
 
