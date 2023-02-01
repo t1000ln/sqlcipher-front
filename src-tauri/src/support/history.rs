@@ -8,6 +8,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
+use api_resp::{ApiResp, DaoResult};
 use lazy_regex::regex_replace_all;
 use log::error;
 use serde::{Deserialize, Serialize};
@@ -240,9 +241,28 @@ pub fn remove_open_history(mut data_path: PathBuf, index: usize) -> Result<Optio
     }
 }
 
+pub fn read_template_record(temp_file_path: PathBuf) -> DaoResult {
+    let mut record = String::new();
+    if temp_file_path.exists() && temp_file_path.is_file() {
+        let mut file = File::open(&temp_file_path)?;
+        file.read_to_string(&mut record)?;
+    }
+    Ok(ApiResp::success(serde_json::Value::String(record)))
+}
+
+pub fn save_template_record(temp_file_path: PathBuf, record: String) -> DaoResult {
+    let mut file = File::options().write(true).create(true).truncate(true).open(temp_file_path)?;
+    file.write(record.as_bytes())?;
+    file.flush()?;
+    Ok(ApiResp::suc())
+}
+
 #[cfg(test)]
 mod tests {
     use std::env;
+
+    use names::{Generator, Name};
+    use rand::Rng;
 
     use super::*;
 
@@ -296,5 +316,40 @@ mod tests {
             "\\\\"
         });
         println!("replaced: {}", replaced);
+    }
+
+    #[test]
+    fn test_read_temp_record() {
+        let mut temp_file_path = if cfg!(windows) {
+            env::temp_dir()
+        } else { PathBuf::from("/home/liuning/tmp/") };
+        temp_file_path.push("sqlcipher-temp-record");
+        let record = read_template_record(temp_file_path).unwrap();
+        println!("record: {:?}", record);
+    }
+
+    #[test]
+    fn test_write_temp_record() {
+        let mut temp_file_path = if cfg!(windows) {
+            env::temp_dir()
+        } else { PathBuf::from("/home/liuning/tmp/") };
+        temp_file_path.push("sqlcipher-temp-record");
+        let mut record = String::new();
+
+        let mut name_gen = Generator::with_naming(Name::Numbered);
+        let mut rng = rand::thread_rng();
+        let round: u8 = rng.gen_range(1..=20);
+        for _ in 0..round {
+            record.push_str(name_gen.next().unwrap().as_str());
+            record.push('\n');
+        }
+
+        let result = save_template_record(temp_file_path, record).unwrap();
+        match result.is_success() {
+            false => { assert!(false, "保存失败 {}", result.get_message()) }
+            true => {
+                println!("保存成功");
+            }
+        }
     }
 }

@@ -38,7 +38,7 @@ export declare type CurrentDbAndTable = {
     /**
      * 当前互动的数据文件路径。
      */
-    db: string;
+    db: string | undefined;
     /**
      * 当前互动的表名。
      */

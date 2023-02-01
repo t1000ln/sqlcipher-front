@@ -22,6 +22,7 @@ declare module '@vue/runtime-core' {
     NewFile: typeof import('./src/components/NewFile.vue')['default']
     Notes: typeof import('./src/components/Notes.vue')['default']
     Objects: typeof import('./src/components/Objects.vue')['default']
+    TableAlter: typeof import('./src/components/TableAlter.vue')['default']
     TableContent: typeof import('./src/components/TableContent.vue')['default']
   }
 }

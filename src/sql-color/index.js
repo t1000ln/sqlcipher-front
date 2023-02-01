@@ -51,6 +51,10 @@ const highlighters = [
     {
         name: 'bracket',
         regex: /([()])/g
+    },
+    {
+        name: 'whitespace',
+        regex: /\n/g
     }
 ]
 
@@ -59,7 +63,7 @@ function getSegments(sqlString) {
 
     for (const hl of highlighters) {
         let match
-        if (hl.name !== 'number') {
+        if (hl.name !== 'number' && hl.name !== 'whitespace') {
             // This is probably the one time when an assignment inside a condition makes sense
             // eslint-disable-next-line no-cond-assign
             while (match = hl.regex.exec(sqlString)) {
@@ -85,10 +89,17 @@ function getSegments(sqlString) {
                     length: trimmedText.length
                 })
             }
+        } else if (hl.name === 'whitespace') {
+            while (match = hl.regex.exec(sqlString)) {
+                matches.push({
+                    name: hl.name,
+                    start: match.index,
+                    length: 1
+                })
+            }
         } else {
             // This is probably the one time when an assignment inside a condition makes sense
             // eslint-disable-next-line no-cond-assign
-            debugger
             while (match = hl.regex.exec(sqlString)) {
                 let text = match[0]
 

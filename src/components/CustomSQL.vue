@@ -6,42 +6,44 @@
           <CaretRight/>
         </el-icon>
       </el-tooltip>
-
       <el-tooltip :show-after="1000" content="格式化输入的SQL (Ctrl+Shift+F)" placement="top-start">
         <el-icon class="icons" @click="formatSql">
           <Finished/>
         </el-icon>
       </el-tooltip>
-
       <el-tooltip :show-after="1000" content="注释单行或多行 (Ctrl+B)" placement="top">
         <el-icon class="icons" @click="commentLine">
           <Expand></Expand>
         </el-icon>
       </el-tooltip>
-
       <el-tooltip :show-after="1000" content="移除单行或多行前面的注释 (Ctrl+Shift+B)" placement="top">
         <el-icon class="icons" @click="uncommentLine">
           <Fold></Fold>
         </el-icon>
       </el-tooltip>
-
     </div>
-    <div ref="sqlContent" class="sql-content" contenteditable="true"
-         @mouseup="rememberSelection"
-         @keydown.ctrl.enter="execSql" @keydown.ctrl.shift.f="formatSql"
-         @keydown.ctrl.shift.b="uncommentLine" @keydown.ctrl.b="commentLine"
-    ></div>
-    <div v-show="showDataArea" ref="dataArea" class="result-content">
-      <el-table v-show="showArrayTable" :data="dataState.arrayResult" :height="resultTableHeight" border
-                class="result-table"
-                stripe>
-        <el-table-column v-for="item in dataState.arrayResultCols" :label="item" :prop="item"
-                         align="center"></el-table-column>
-      </el-table>
-      <span v-show="showActionResult">{{ dataState.actionResult }}</span>
-    </div>
+    <splitpanes class="custom-area" horizontal>
+      <pane class="sql-content-pane" max-size="80" min-size="5" size="40">
+        <div ref="sqlContent" class="sql-content" contenteditable="true"
+             @mouseup="rememberSelection"
+             @keydown.ctrl.enter="execSql" @keydown.ctrl.shift.f="formatSql"
+             @keydown.ctrl.shift.b="uncommentLine" @keydown.ctrl.b="commentLine"
+        ></div>
+      </pane>
+      <pane size="60">
+        <div class="last-db-path">{{ lastExecOnDbPath }}</div>
+        <div v-show="showDataArea" ref="dataArea" class="result-content">
+          <el-table v-show="showArrayTable" :data="dataState.arrayResult" :height="resultTableHeight" border
+                    class="result-table"
+                    stripe>
+            <el-table-column v-for="item in dataState.arrayResultCols" :label="item" :prop="item"
+                             align="center"></el-table-column>
+          </el-table>
+          <span v-show="showActionResult">{{ dataState.actionResult }}</span>
+        </div>
+      </pane>
+    </splitpanes>
   </div>
-
 </template>
 
 <script lang="ts" name="CustomSQL" setup>
@@ -50,7 +52,8 @@ import {reactive, ref} from "vue";
 import {ApiResp, backApi, CurrentDbAndTable, emitter, ExecParam, SelectedLines, SqlSelection} from "../types/common";
 import {ElMessage} from "element-plus";
 import {format} from 'sql-formatter';
-
+import {Pane, Splitpanes} from 'splitpanes'
+import 'splitpanes/dist/splitpanes.css'
 
 const sqlContent = ref();
 const dataArea = ref();
@@ -68,15 +71,18 @@ const dataState = reactive({
   arrayResult: [] as any[],
   actionResult: '',
   arrayResultCols: new Set<string>(),
-})
+});
+const lastExecOnDbPath = ref('');
 
 emitter.on('meta_objects_refreshed', (newCurrent) => {
   pageCache.current = newCurrent as CurrentDbAndTable;
 });
 
-
+const watermarkText = ref('');
 const execSql = () => {
   if (pageCache.current.db !== undefined) {
+    lastExecOnDbPath.value = pageCache.current.db;
+
     /*
     重组SQL语句，忽略注释行，合并冗余的空白和换行符。
      */
@@ -292,9 +298,40 @@ const calcSelectionRange = (sqlDiv: any, s: Selection): SelectedLines => {
     max: Math.max(y1, y2),
   }
 }
+
+const trimTagOnPaste = (e: Event) => {
+  // e.preventDefault();
+  // let text = '';
+  // let ce = e as ClipboardEvent;
+  // let clp = ce.clipboardData;
+  // if (clp) {
+  //   text = clp.getData('text/plain') || '';
+  //   if (text) {
+  //     let coloredText = highlight(text, {html: true});
+  //     console.log(coloredText)
+  //     sqlContent.value.innerHTML = coloredText;
+  //     // let newText = highlight(text, {html: true});
+  //     let s = window.getSelection();
+  //     if (s) {
+  //       let nodes = sqlContent.value.childNodes;
+  //       let node = nodes[nodes.length - 1];
+  //       let r = s.getRangeAt(0);
+  //       r.selectNodeContents(node);
+  //       s.collapse(node, text.length);
+  //     }
+  //   }
+  // }
+
+}
+
+
 </script>
 
 <style scoped>
+.custom-area {
+  height: 95vh;
+}
+
 .action-bar {
   margin-bottom: .2em;
 }
@@ -313,18 +350,30 @@ const calcSelectionRange = (sqlDiv: any, s: Selection): SelectedLines => {
   color: limegreen;
 }
 
+.sql-content-pane {
+  border-radius: 5px;
+}
+
 .sql-content {
   font-family: monospace;
   font-size: 1.1em;
-  height: 40vh;
-  padding: .2em;
+  background-color: floralwhite;
+  width: 100%;
+  height: 100%;
+  padding: .5em;
   overflow: scroll;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1), 0 0 8px rgba(82, 168, 236, 0.6);
+  border-radius: 5px;
+  box-shadow: 0 0 10px #000000 inset;
+  /*box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1), 0 0 8px rgba(82, 168, 236, 0.6);*/
+}
+
+.last-db-path {
+  margin-top: 1em;
+  color: lightslategray;
 }
 
 .result-content {
   font-family: monospace;
-  margin-top: 1em;
 }
 
 .result-table {

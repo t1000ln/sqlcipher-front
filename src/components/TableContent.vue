@@ -14,7 +14,10 @@
       </el-tooltip>
 
       <el-tooltip :show-after="1000" content="提交修改 (Ctrl+Enter)" placement="top">
-        <i class="vxe-icon-download icons" @click="commitActions"></i>
+        <!--        <i class="vxe-icon-download icons" @click="commitActions"></i>-->
+        <el-icon class="icons" @click="commitActions">
+          <DocumentChecked></DocumentChecked>
+        </el-icon>
       </el-tooltip>
 
       <el-tooltip :show-after="1000" content="在提交前撤销修改" placement="top">
@@ -24,21 +27,21 @@
       </el-tooltip>
 
       <el-tooltip :show-after="1000" content="最多100条数据" placement="top">
-        <el-button @click="changeLimit(100)">0..100</el-button>
+        <el-button class="action-btn" @click="changeLimit(100)">0..100</el-button>
       </el-tooltip>
 
       <el-tooltip :show-after="1000" content="最多10w条数据" placement="top">
-        <el-button @click="changeLimit(100000)">0..100000</el-button>
+        <el-button class="action-btn" @click="changeLimit(100000)">0..100000</el-button>
       </el-tooltip>
 
     </div>
 
     <vxe-table ref="contentTable" :column-config="{resizable: true}" :data="tableDataState.rows"
-               :edit-config="editConfig.cfg"
-               :keyboard-config="{isEsc: true, isTab: true, isEnter: true, isArrow: true}"
+               :edit-config="editConfig.cfg" :keyboard-config="{isEsc: true, isTab: true, isEnter: true, isArrow: true}"
                :row-config="{isHover: true}"
-               align="center" border height="300" keep-source max-height="600"
-               show-overflow stripe @edit-closed="editClosedEvent">
+               align="center"
+               border height="300" keep-source max-height="600" show-overflow
+               size="mini" stripe @edit-closed="editClosedEvent">
       <vxe-column v-if="!pageCache.current.isView" type="checkbox" width="50"></vxe-column>
       <vxe-column v-if="pageCache.current.isView" title="序号" type="seq" width="60"></vxe-column>
       <vxe-column v-for="(item, index) in tableDataState.cols" :key="index"
@@ -66,9 +69,10 @@ import emitter, {
   TableData
 } from "../types/common";
 import {reactive, ref} from "vue";
-import {VxeTableEvents, VxeTableInstance, VxeTablePropTypes} from "vxe-table";
-import {ElMessage, ElMessageBox} from "element-plus";
+import VXETable, {VxeTableEvents, VxeTableInstance, VxeTablePropTypes} from "vxe-table";
+// import {ElMessage, ElMessageBox} from "element-plus";
 import * as _ from 'lodash'
+import "vxe-table/lib/style.css";
 
 const currentLimit = ref(100);
 const contentTable = ref<VxeTableInstance>();
@@ -76,6 +80,11 @@ const tableDataState = reactive({
   cols: [] as ColumnMeta[],
   rows: [] as object[]
 });
+
+// const tableDataState = reactive({
+//   cols: [{name: 'id', type: 'INTEGER'}, {name: 'name', type: 'TEXT'}] as ColumnMeta[],
+//   rows: [{id: 1, name: '张三'}, {id: 2, name: '张四'}] as object[]
+// });
 
 const editConfig = reactive({
   cfg: {trigger: 'dblclick', mode: 'cell', showStatus: true} as VxeTablePropTypes.EditConfig,
@@ -133,7 +142,8 @@ const fetchTableData = (currentMeta: CurrentDbAndTable) => {
         tableDataState.rows = nd.rows;
       }
     } else {
-      ElMessage.error(r.message);
+      // ElMessage.error(r.message);
+      VXETable.modal.message({content: r.message, status: 'error'});
     }
   });
 }
@@ -212,7 +222,7 @@ const commitActions = async () => {
     return;
   }
 
-  await ElMessageBox.confirm('确认提交改动吗？', '提醒').then((_) => {
+  await VXETable.modal.confirm('确认提交改动吗？', '提醒').then((_) => {
     let $table = contentTable.value;
     if ($table) {
       let apiParams: EditApiParams = {
@@ -263,10 +273,12 @@ const commitActions = async () => {
       backApi("update_table_data", apiParams, (resp) => {
         let r: ApiResp = JSON.parse(resp as string);
         if (r.success) {
-          ElMessage.success('提交成功');
+          // ElMessage.success('提交成功');
+          VXETable.modal.message({content: '提交成功', status: 'success'});
           fetchTableData(pageCache.current);
         } else {
-          ElMessage.error(r.message);
+          // ElMessage.error(r.message);
+          VXETable.modal.message({content: r.message, status: 'error'});
         }
       })
     }
@@ -282,7 +294,7 @@ const commitActions = async () => {
 const revertEdit = async () => {
   const $table = contentTable.value;
   if ($table) {
-    await ElMessageBox.confirm('撤回尚未提交的改动吗？', '提醒').then((_) => {
+    await VXETable.modal.confirm('撤回尚未提交的改动吗？', '提醒').then((_) => {
       $table.revertData();
     }).catch((cancel) => {
     })
@@ -317,6 +329,15 @@ emitter.on('keyboard-action', (keys) => {
 
 .icons:hover {
   cursor: pointer;
-  color: limegreen;
+  color: #f56c6c;
+  filter: drop-shadow(0 .25rem .25rem #f56c6c);
+}
+
+.action-btn {
+  line-height: 2em;
+  font-size: 1.5em;
+  margin: 0em .5em .5em .5em;
+  padding-left: .5em;
+  padding-right: .5em;
 }
 </style>

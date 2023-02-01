@@ -9,6 +9,13 @@ import {ElementPlusResolver} from "unplugin-vue-components/resolvers";
 
 // https://vitejs.dev/config/
 export default defineConfig({
+    css: {
+        preprocessorOptions: {
+            scss: {
+                additionalData: `@import "/src/assets/scss/variables.scss";`
+            }
+        }
+    },
     plugins: [vue(),
         AutoImport({resolvers: [ElementPlusResolver()]}),
         Components({

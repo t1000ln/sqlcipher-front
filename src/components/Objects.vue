@@ -2,9 +2,14 @@
   <div class="objects-area">
     <div v-for="item in obj_lists.table_names" class="table-name" @click="reloadTableData(item, false)">
       <span>{{ item }}</span>
+      <el-tooltip :show-after="500" content="修改表结构">
+        <el-icon class="edit-icon" @click="editDDL(item)">
+          <Edit></Edit>
+        </el-icon>
+      </el-tooltip>
       <el-tooltip :show-after="500" content="查看建表语句">
         <el-icon class="edit-icon" @click="showDDL(item)">
-          <Tickets></Tickets>
+          <Memo></Memo>
         </el-icon>
       </el-tooltip>
     </div>
@@ -12,7 +17,7 @@
       <span>{{ item }}</span>
       <el-tooltip :show-after="500" content="查看建表语句">
         <el-icon class="edit-icon" @click="showDDL(item)">
-          <Tickets></Tickets>
+          <Memo></Memo>
         </el-icon>
       </el-tooltip>
     </div>
@@ -24,9 +29,9 @@
             <CopyDocument></CopyDocument>
           </el-icon>
         </div>
-
       </div>
     </el-dialog>
+    <TableAlter></TableAlter>
   </div>
 </template>
 
@@ -73,7 +78,7 @@ const createTableSql = ref('');
 const ddlPre = ref();
 const showDDL = async (tableName: string) => {
   showAlterTableDialog.value = true;
-  let params: { [keysOf: string]: string } = {
+  let params: { [keysOf: string]: string | undefined } = {
     dbPath: pageCache.current.db,
     tableName: tableName,
   };
@@ -90,6 +95,10 @@ const showDDL = async (tableName: string) => {
   });
 }
 
+const editDDL = async (tableName: string) => {
+  emitter.emit('show-edit-ddl-dialog', tableName);
+}
+
 const copyDdl = async () => {
   await writeText(createTableSql.value);
   ElMessage.info({
@@ -102,12 +111,13 @@ const copyDdl = async () => {
 
 <style scoped>
 .objects-area {
-  height: 76%;
-  overflow-y: scroll;
+  /*height: 76%;*/
+  /*overflow-y: scroll;*/
 }
 
 .table-name {
-  width: 100%;
+  padding: 0 0 .2em .2em;
+  width: 98%;
   display: flex;
   align-items: center;
   justify-content: space-between;

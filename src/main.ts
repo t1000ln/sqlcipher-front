@@ -9,7 +9,7 @@ import 'xe-utils'
 // @ts-ignore
 import MyApp from "./App.vue";
 import VXETable from "vxe-table";
-import "vxe-table/lib/style.css";
+
 
 const app = createApp(MyApp);
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {

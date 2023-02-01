@@ -6,7 +6,7 @@ use log::error;
 use serde_json::json;
 
 use crate::get_config_dir;
-use crate::support::history::{add_open_history, get_open_history, remove_open_history};
+use crate::support::history::{add_open_history, get_open_history, read_template_record, remove_open_history, save_template_record};
 use crate::support::load_db::{edit_data, exec_sql, fetch_rows, fetch_table_sql, load_tables, remove_db_connection};
 
 #[tauri::command]
@@ -88,4 +88,19 @@ pub async fn update_table_data(db_path: String, table_name: String, key: Option<
 #[tauri::command]
 pub async fn get_table_sql(db_path: String, table_name: String, key: Option<String>) -> String {
     fetch_table_sql(db_path, key, table_name).await.to_json_str("查询目标SQL语句时出错")
+}
+
+
+#[tauri::command]
+pub async fn save_temp_notes(temp_file_path: String, note: String) -> String {
+    let mut path = PathBuf::from(temp_file_path);
+    path.push("temp_notes");
+    save_template_record(path, note).to_json_str("保存临时记录时出错")
+}
+
+#[tauri::command]
+pub async fn load_temp_notes(temp_file_path: String) -> String {
+    let mut path = PathBuf::from(temp_file_path);
+    path.push("temp_notes");
+    read_template_record(path).to_json_str("加载临时记录时出错")
 }

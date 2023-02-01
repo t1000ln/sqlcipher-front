@@ -72,16 +72,6 @@ const load_history = () => {
 }
 
 const deleteEntry = async (path: string, index: number) => {
-  // await ElMessageBox.confirm('要取消<' + path + '>缓存吗？该操作不会删除数据库文件。', '提醒').then(() => {
-  //   backApi("remove_history_entry", {index: index}, (resp) => {
-  //     let r: ApiResp<null> = JSON.parse(resp as string);
-  //     if (r.success) {
-  //       load_history();
-  //       emitter.emit('remove_history_success');
-  //     }
-  //   });
-  // }).catch((err) => {
-  // })
   let cfm = await confirm('要取消<' + path + '>缓存吗？该操作不会删除数据库文件。');
   if (cfm) {
     await backApi("remove_history_entry", {index: index}, (resp) => {
@@ -101,7 +91,7 @@ onMounted(() => {
 <style scoped>
 
 .his_area {
-  position: relative;
+  /*position: relative;*/
   /*border: 1px solid lightgray;*/
 }
 
