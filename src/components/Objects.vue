@@ -24,7 +24,8 @@
     <el-dialog v-model="showAlterTableDialog">
       <div>
         <div style="position: relative;">
-          <pre ref="ddlPre" class="ddl-pre"></pre>
+          <!--          <pre ref="ddlPre" class="ddl-pre"></pre>-->
+          <highlightjs :code="createTableSql" language="sql"></highlightjs>
           <el-icon class="copy-icon" @click="copyDdl">
             <CopyDocument></CopyDocument>
           </el-icon>
@@ -43,8 +44,7 @@ import {reactive, ref} from "vue";
 import {ObjectNames} from "../types/metas";
 import {writeText} from "@tauri-apps/api/clipboard";
 import {ElMessage} from "element-plus";
-import highlight from "../sql-color";
-
+// import highlight from "../sql-color";
 
 const showAlterTableDialog = ref(false);
 
@@ -89,8 +89,8 @@ const showDDL = async (tableName: string) => {
     let r: ApiResp<string> = JSON.parse(resp as string);
     if (r.success) {
       createTableSql.value = r.data;
-      let p = highlight(r.data, {html: true});
-      ddlPre.value.innerHTML = p;
+      // let p = highlight(r.data, {html: true});
+      // ddlPre.value.innerHTML = p;
     }
   });
 }
@@ -145,14 +145,15 @@ const copyDdl = async () => {
   transition: color .1s;
 }
 
-.ddl-pre {
-  font-family: monospace;
-  color: #0f0f0f;
-  /*font-weight: bold;*/
-  background-color: #f5f5f5;
-  border: 1px solid lightgray;
-  border-radius: 4px;
-  padding: .5em;
-  white-space: pre-wrap;
-}
+/*.ddl-pre {*/
+/*  font-family: monospace;*/
+/*  color: #0f0f0f;*/
+/*  !*font-weight: bold;*!*/
+/*  background-color: #f5f5f5;*/
+/*  border: 1px solid lightgray;*/
+/*  border-radius: 4px;*/
+/*  padding: .5em;*/
+/*  white-space: pre-wrap;*/
+/*}*/
+
 </style>

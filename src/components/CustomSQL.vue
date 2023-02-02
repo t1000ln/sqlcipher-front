@@ -22,13 +22,28 @@
         </el-icon>
       </el-tooltip>
     </div>
-    <splitpanes class="custom-area" horizontal>
+    <splitpanes :dbl-click-splitter="false" class="custom-area" horizontal>
       <pane class="sql-content-pane" max-size="80" min-size="5" size="40">
-        <div ref="sqlContent" class="sql-content" contenteditable="true"
-             @mouseup="rememberSelection"
-             @keydown.ctrl.enter="execSql" @keydown.ctrl.shift.f="formatSql"
-             @keydown.ctrl.shift.b="uncommentLine" @keydown.ctrl.b="commentLine"
-        ></div>
+        <!--        <div ref="sqlContent" class="sql-content" contenteditable="true"-->
+        <!--             @mouseup="rememberSelection"-->
+        <!--             @keydown.ctrl.enter="execSql" @keydown.ctrl.shift.f="formatSql"-->
+        <!--             @keydown.ctrl.shift.b="uncommentLine" @keydown.ctrl.b="commentLine"-->
+        <!--        ></div>-->
+        <!--        <splitpanes :dbl-click-splitter="false">-->
+        <!--          <pane max-size="90" min-size="10" size="50">-->
+        <!--            <Toolbar :default-config="toolbarConfig" :editor="editorRef"></Toolbar>-->
+        <!--            <Editor v-model="sqlHtml" :default-config="editorConfig" mode="simple"-->
+        <!--                    @onChange="handleChange" @onCreated="handleCreated"-->
+        <!--                    @keydown.ctrl.enter="execCurrentSql"></Editor>-->
+        <!--          </pane>-->
+        <!--          <pane>-->
+        <!--            <highlightjs ref="hlSqlBlock" :code="sqlText" class="echo-sql-pre"></highlightjs>-->
+        <!--          </pane>-->
+        <!--        </splitpanes>-->
+        <Toolbar :default-config="toolbarConfig" :editor="editorRef"></Toolbar>
+        <Editor v-model="sqlHtml" :default-config="editorConfig" mode="simple"
+                @onChange="handleChange" @onCreated="handleCreated"
+                @keydown.ctrl.enter="execCurrentSql"></Editor>
       </pane>
       <pane size="60">
         <div class="last-db-path">{{ lastExecOnDbPath }}</div>
@@ -48,12 +63,18 @@
 
 <script lang="ts" name="CustomSQL" setup>
 
-import {reactive, ref} from "vue";
+import {onBeforeUnmount, reactive, ref, shallowRef} from "vue";
 import {ApiResp, backApi, CurrentDbAndTable, emitter, ExecParam, SelectedLines, SqlSelection} from "../types/common";
 import {ElMessage} from "element-plus";
 import {format} from 'sql-formatter';
 import {Pane, Splitpanes} from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
+import '@wangeditor/editor/dist/css/style.css'
+import {Editor, Toolbar} from '@wangeditor/editor-for-vue'
+import {IEditorConfig, IToolbarConfig} from "@wangeditor/editor";
+import {AlertType} from "@wangeditor/core/dist/core/src/config/interface"
+import {IDomEditor} from "@wangeditor/core/dist/core/src/editor/interface";
+import _ from 'lodash'
 
 const sqlContent = ref();
 const dataArea = ref();
@@ -66,6 +87,119 @@ const sqlSelection = reactive<SqlSelection>({
   fromLineNum: -1,
   toLineNum: -1,
 });
+
+const hlSqlBlock = ref();
+const editorRef = shallowRef();
+const sqlHtml = ref('');
+const sqlText = ref('');
+const toolbarConfig: Partial<IToolbarConfig> = {
+  toolbarKeys: ['fontSize', 'fontFamily', 'lineHeight', 'codeBlock']
+};
+const editorConfig: Partial<IEditorConfig> = {
+  placeholder: '请输入SQL语句',
+  customAlert: function (info: string, type: AlertType): void {
+    throw new Error('Function not implemented.');
+  },
+  scroll: true,
+  readOnly: false,
+  autoFocus: false,
+  MENU_CONF: {
+    'codeSelectLang': {
+      'codeLangs': [{text: 'SQL', value: 'sql'}]
+    }
+  }
+};
+const handleCreated = (editor: IDomEditor) => {
+  editorRef.value = editor // 记录 editor 实例，重要！
+}
+const customPaste = (editor: IDomEditor, event: ClipboardEvent, callback: Function) => {
+  if (event.clipboardData) {
+    // const html = event.clipboardData.getData('text/html') // 获取粘贴的 html
+    const text = event.clipboardData.getData('text/plain') // 获取粘贴的纯文本
+    // const rtf = event.clipboardData.getData('text/rtf') // 获取 rtf 数据（如从 word wsp 复制粘贴）
+
+    // 自定义插入内容
+    editor.insertText(text)
+
+    // 返回 false ，阻止默认粘贴行为
+    event.preventDefault()
+    callback(false) // 返回值（注意，vue 事件的返回值，不能用 return）
+
+    // 返回 true ，继续默认的粘贴行为
+    // callback(true)
+  }
+}
+
+const handleChange = (editor: IDomEditor) => {
+  onChange(editor);
+}
+
+const onChange = _.debounce((editor: IDomEditor) => {
+  sqlText.value = editor.getText();
+}, 50);
+
+
+const execCurrentSql = () => {
+  let editor: IDomEditor = editorRef.value as IDomEditor;
+  let selection = editor.selection;
+  if (selection?.anchor !== undefined) {
+    let fromLineNum: number | undefined = selection.anchor.path[0];
+    let sql = '';
+    if (_.isEqual(selection.focus, selection.anchor)) {
+      // 未选择任何文本
+      // 计算光标的绝对字符位置
+      let text = editor.getText();
+      let ahead = 0;
+      // 计算光标之前所有行的字符串长度，不包括光标所在行
+      for (let i = 0, lastRetPos = 0; i < fromLineNum; i++) {
+        lastRetPos = text.indexOf('\n', ahead);
+        if (lastRetPos != -1) {
+          ahead = lastRetPos + 1;
+        }
+      }
+      ahead += selection.anchor.offset;
+
+      // 处理从开始到光标处的字符串
+      let realStart = 0, realEnd = text.length;
+      let preHalf = text.substring(0, ahead).trimEnd();
+      if (selection.anchor.offset != 0 && preHalf.charAt(preHalf.length - 1) == ';') {
+        preHalf = preHalf.substring(0, preHalf.length - 1);
+        /*
+         光标在分号后面，最近的SQL语句起始位置在最近的两个分号之间，
+         或从0开始到前面最近一个分号处。
+         */
+        let lastSemiPos = preHalf.lastIndexOf(';');
+        if (lastSemiPos != -1) {
+          realStart = lastSemiPos + 1;
+        }
+        sql = preHalf.substring(realStart).trim();
+      } else {
+        // 光标在语句中间
+        preHalf = text.substring(0, ahead);
+        let lastSemiPos = preHalf.lastIndexOf(';');
+        if (lastSemiPos != -1) {
+          realStart = lastSemiPos + 1;
+        }
+        let firstSemiPos = text.indexOf(';', ahead);
+        if (firstSemiPos != -1) {
+          realEnd = firstSemiPos;
+        }
+        sql = text.substring(realStart, realEnd).trim();
+      }
+    } else {
+      sql = editor.getSelectionText().trim();
+    }
+    console.log('sql', sql.trim().replaceAll('\n', ' '));
+  }
+}
+
+onBeforeUnmount(() => {
+  const editor = editorRef.value;
+  if (editor) {
+    editor.destroy();
+  }
+})
+
 
 const dataState = reactive({
   arrayResult: [] as any[],
@@ -324,7 +458,6 @@ const trimTagOnPaste = (e: Event) => {
 
 }
 
-
 </script>
 
 <style scoped>
@@ -379,4 +512,17 @@ const trimTagOnPaste = (e: Event) => {
 .result-table {
   width: 100%;
 }
+
+.echo-sql-pre {
+  height: 97%;
+  width: 100%;
+  overflow: scroll;
+  margin-top: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/*.echo-sql-pre > code {*/
+/*  min-height: 88%;*/
+/*}*/
 </style>

@@ -42,3 +42,7 @@ span.sql-hl-string {
 span.sql-hl-number {
     color: blue;
 }
+
+code {
+    border-radius: 5px;
+}
