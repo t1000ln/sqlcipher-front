@@ -149,6 +149,8 @@ const execCurrentSql = () => {
       // 未选择任何文本
       // 计算光标的绝对字符位置
       let text = editor.getText();
+      console.log(text)
+
       let ahead = 0;
       // 计算光标之前所有行的字符串长度，不包括光标所在行
       for (let i = 0, lastRetPos = 0; i < fromLineNum; i++) {
@@ -158,7 +160,7 @@ const execCurrentSql = () => {
         }
       }
       ahead += selection.anchor.offset;
-
+      
       // 处理从开始到光标处的字符串
       let realStart = 0, realEnd = text.length;
       let preHalf = text.substring(0, ahead).trimEnd();
