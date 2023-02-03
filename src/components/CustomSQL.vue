@@ -74,7 +74,7 @@ const sqlSelection = reactive<SqlSelection>({
 });
 
 const editorRef = shallowRef();
-const sqlHtml = ref('');
+const sqlHtml = ref('<pre><code class="language-sql"></code></pre>');
 const toolbarConfig: Partial<IToolbarConfig> = {
   toolbarKeys: ['fontSize', 'fontFamily', 'lineHeight', 'codeBlock']
 };
@@ -86,11 +86,9 @@ const editorConfig: Partial<IEditorConfig> = {
   scroll: true,
   readOnly: false,
   autoFocus: false,
-  MENU_CONF: {
-    'codeSelectLang': {
-      'codeLangs': [{text: 'SQL', value: 'sql'}]
-    }
-  }
+  hoverbarKeys: {
+    'pre': {menuKeys: []}
+  },
 };
 const handleCreated = (editor: IDomEditor) => {
   editorRef.value = editor // 记录 editor 实例，重要！
@@ -302,9 +300,8 @@ const formatSql = () => {
  * 注释光标所在行或选中的多个行。
  */
 const commentLine = (e: Event) => {
-  console.log('开始添加注释')
-
   let editor = editorRef.value as IDomEditor;
+  console.log(editor.children)
   let selection = editor.selection;
   let nodeEntries = SlateEditor.nodes(editor, {
     match: (node: SlateNode) => {
@@ -500,4 +497,6 @@ const calcSelectionRange = (sqlDiv: any, s: Selection): SelectedLines => {
 .result-table {
   width: 100%;
 }
+
+
 </style>
