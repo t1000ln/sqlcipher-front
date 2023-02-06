@@ -56,7 +56,7 @@ import {Pane, Splitpanes} from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 import '@wangeditor/editor/dist/css/style.css'
 import {Editor, Toolbar} from '@wangeditor/editor-for-vue'
-import {IEditorConfig, IToolbarConfig, SlateEditor, SlateElement, SlateNode} from "@wangeditor/editor";
+import {IEditorConfig, IToolbarConfig, SlateEditor, SlateNode, SlateText} from "@wangeditor/editor";
 import {AlertType} from "@wangeditor/core/dist/core/src/config/interface"
 import {IDomEditor} from "@wangeditor/core/dist/core/src/editor/interface";
 import _ from 'lodash'
@@ -300,27 +300,44 @@ const formatSql = () => {
  * 注释光标所在行或选中的多个行。
  */
 const commentLine = (e: Event) => {
+  /*
+  解决快捷键多重激发的问题：约定当前函数的快捷键为`Ctrl+b`，
+  当按下`Ctrl+Shift+b`时也会触发本方法，所以需要进行检测拦截。
+   */
+  if (e instanceof KeyboardEvent && (e as KeyboardEvent).shiftKey) {
+    return;
+  }
+
   let editor = editorRef.value as IDomEditor;
-  console.log(editor.children)
-  let selection = editor.selection;
   let nodeEntries = SlateEditor.nodes(editor, {
     match: (node: SlateNode) => {
-      if (SlateElement.isElement(node)) {
-        console.log('节点类型', node)
-        debugger
-        if (node.type == 'paragraph') {
-          return true;
-        }
-      }
-      return false;
+      return SlateText.isText(node);
     },
     universal: true
   });
   if (nodeEntries) {
     for (let nodeEntry of nodeEntries) {
       const [node, path] = nodeEntry
-      console.log('选中了 paragraph 节点', node)
-      console.log('节点 path 是', path)
+      let text = node.text;
+      let pos = 0, nextPos = -1;
+      do {
+        let tmpSelect = {
+          anchor: {
+            path: path,
+            offset: pos
+          },
+          focus: {
+            path: path,
+            offset: pos
+          }
+        };
+        editor.select(tmpSelect);
+        editor.insertText('--');
+        nextPos = text.indexOf('\n', pos);
+        pos = nextPos + 3; // 循环操作时，每次要增加'--'的长度
+      } while (nextPos != -1);
+      // console.log('选中了 text 节点', node)
+      // console.log('节点 path 是', path)
     }
   } else {
     console.log('当前未选中的 paragraph')
@@ -381,57 +398,95 @@ const commentLine = (e: Event) => {
   // }
 }
 
+const COMMENT_PREFIX = /^\s*--/;
+
 /**
  * 移除光标所在行或选中的多个行前面的注释字符串。
  */
 const uncommentLine = (e: Event) => {
-  let sqlDiv = sqlContent.value;
-  /*
-  根据当前光标所在位置，或所选区域，计算出将要移除注释字符的行。
-   */
-  let fromLineNum = -1, toLineNum = -1;
-  if (e instanceof MouseEvent) {
-    fromLineNum = sqlSelection.fromLineNum;
-    toLineNum = sqlSelection.toLineNum;
+  let editor = editorRef.value as IDomEditor;
+  let nodeEntries = SlateEditor.nodes(editor, {
+    match: (node: SlateNode) => {
+      return SlateText.isText(node);
+    },
+    universal: true
+  });
+  if (nodeEntries) {
+    for (let nodeEntry of nodeEntries) {
+      const [node, path] = nodeEntry
+      let text: string = node.text;
+      let parts = text.split('\n');
+      let pos = 0;
+      for (let i = 0; i < parts.length; i++) {
+        let m = parts[i].match(COMMENT_PREFIX);
+        if (m) {
+          let deleteLength = m[0].length;
+          let tmpSelect = {
+            anchor: {
+              path: path,
+              offset: pos
+            },
+            focus: {
+              path: path,
+              offset: pos + deleteLength
+            }
+          };
+          editor.select(tmpSelect);
+          editor.deleteFragment("forward");
+          pos += parts[i].length + 1 - deleteLength;
+        }
+      }
+    }
   } else {
-    let s = window.getSelection();
-    if (s) {
-      let selected = calcSelectionRange(sqlDiv, s);
-      fromLineNum = selected.min;
-      toLineNum = selected.max;
-
-      s.collapseToEnd();
-    }
+    console.log('当前未选中的 paragraph')
   }
-
-  /*
-  移除目标行开头处添加"--"字符串。
-   */
-  if (toLineNum > -1) {
-    if (fromLineNum > -1) {
-      for (let i = fromLineNum; i <= toLineNum; i++) {
-        let n = sqlDiv.childNodes[i];
-        let text = (n.nodeName == '#text') ? n.nodeValue : n.innerText;
-        if (text.startsWith('--')) {
-          if (n.nodeName == '#text') {
-            n.nodeValue = n.nodeValue.replace(/\s*--/, '');
-          } else {
-            n.innerText = n.innerText.replace(/\s*--/, '');
-          }
-        }
-      }
-    } else {
-      let n = sqlDiv.childNodes[toLineNum];
-      let text = (n.nodeName == '#text') ? n.nodeValue : n.innerText;
-      if (text.trim().startsWith('--')) {
-        if (n.nodeName == '#text') {
-          n.nodeValue = n.nodeValue.replace(/\s*--/, '');
-        } else {
-          n.innerText = n.innerText.replace(/\s*--/, '');
-        }
-      }
-    }
-  }
+  // let sqlDiv = sqlContent.value;
+  // /*
+  // 根据当前光标所在位置，或所选区域，计算出将要移除注释字符的行。
+  //  */
+  // let fromLineNum = -1, toLineNum = -1;
+  // if (e instanceof MouseEvent) {
+  //   fromLineNum = sqlSelection.fromLineNum;
+  //   toLineNum = sqlSelection.toLineNum;
+  // } else {
+  //   let s = window.getSelection();
+  //   if (s) {
+  //     let selected = calcSelectionRange(sqlDiv, s);
+  //     fromLineNum = selected.min;
+  //     toLineNum = selected.max;
+  //
+  //     s.collapseToEnd();
+  //   }
+  // }
+  //
+  // /*
+  // 移除目标行开头处添加"--"字符串。
+  //  */
+  // if (toLineNum > -1) {
+  //   if (fromLineNum > -1) {
+  //     for (let i = fromLineNum; i <= toLineNum; i++) {
+  //       let n = sqlDiv.childNodes[i];
+  //       let text = (n.nodeName == '#text') ? n.nodeValue : n.innerText;
+  //       if (text.startsWith('--')) {
+  //         if (n.nodeName == '#text') {
+  //           n.nodeValue = n.nodeValue.replace(/\s*--/, '');
+  //         } else {
+  //           n.innerText = n.innerText.replace(/\s*--/, '');
+  //         }
+  //       }
+  //     }
+  //   } else {
+  //     let n = sqlDiv.childNodes[toLineNum];
+  //     let text = (n.nodeName == '#text') ? n.nodeValue : n.innerText;
+  //     if (text.trim().startsWith('--')) {
+  //       if (n.nodeName == '#text') {
+  //         n.nodeValue = n.nodeValue.replace(/\s*--/, '');
+  //       } else {
+  //         n.innerText = n.innerText.replace(/\s*--/, '');
+  //       }
+  //     }
+  //   }
+  // }
 }
 
 /**
